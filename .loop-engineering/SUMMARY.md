@@ -7,16 +7,21 @@ success
 ## Completed
 
 - configured loop run completed through iteration 1
+- release-readiness test run manually after initial commit
+- repository created and pushed to `kujolang/kujo-pi` on `main`
 
 ## Verification
 
-- passed: diff_check
+- passed: `npm test`
+- passed: `git diff --check`
+- passed: remote push and clean working tree
 - blocked: none
 - failed: none
 
 ## Commits
 
-- Loop engineering: Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation.
+- e99f6bb Loop engineering: Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation.
+- pending: record successful remote publication
 
 ## Remaining
 
@@ -29,7 +34,3 @@ success
 ## Next Start
 
 - success: required gates passed
-
-## Push Blocker
-
-- git push origin HEAD failed; see blockers.md for normalized evidence.
