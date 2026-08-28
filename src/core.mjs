@@ -50,7 +50,7 @@ export function truncateOutput(value, maxChars = 12_000) {
   return `${value.slice(0, maxChars)}\n\n[output truncated at ${maxChars} characters]`;
 }
 
-/** @param {{stdout: string, stderr: string, code: number, killed: boolean}} result @param {string} label */
+/** @param {{stdout: string, stderr: string, code: number|null, killed: boolean}} result @param {string} label */
 export function commandResult(result, label) {
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
   const status = result.killed ? "timeout_or_cancelled" : result.code === 0 ? "success" : "command_failed";

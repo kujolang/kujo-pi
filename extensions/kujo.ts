@@ -1,21 +1,55 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
 import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, fetchWithRetry, meetsMinimumVersion, sameOriginUrl, versionFromOutput, workspacePath } from "../src/core.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
-  onUpdate?.(toolResult({ ok: true, status: "running", label: command }));
+  const publishUpdate = (value: unknown) => { if (typeof onUpdate === "function") onUpdate(toolResult(value)); };
+  publishUpdate({ ok: true, status: "running", label: command });
+  if (onUpdate) return streamExec(command, args, cwd, signal, timeout, onUpdate);
   try {
     const started = Date.now();
     const result = { ...commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command), durationMs: Date.now() - started };
-    onUpdate?.(toolResult(result));
+    publishUpdate(result);
     return result;
   } catch (error) {
     const result = { label: command, ...errorResult(error) };
-    onUpdate?.(toolResult(result));
+    publishUpdate(result);
     return result;
   }
+}
+
+function streamExec(command: string, args: string[], cwd: string, signal: AbortSignal | undefined, timeout: number, onUpdate: (result: any) => void) {
+  return new Promise((resolve) => {
+    const maxChars = 12_000;
+    let stdout = "";
+    let stderr = "";
+    let killed = false;
+    let settled = false;
+    let lastUpdate = 0;
+    const child = spawn(command, args, { cwd, shell: false, windowsHide: true });
+    const publish = () => {
+      const now = Date.now();
+      if (now - lastUpdate < 200) return;
+      lastUpdate = now;
+      onUpdate(toolResult({ ok: true, status: "running", label: command, output: `${stdout}${stderr ? `\n${stderr}` : ""}`.slice(0, maxChars) }));
+    };
+    const finish = (result: any) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      onUpdate(toolResult(result));
+      resolve(result);
+    };
+    const timer = setTimeout(() => { killed = true; child.kill("SIGTERM"); }, timeout);
+    signal?.addEventListener("abort", () => { killed = true; child.kill("SIGTERM"); }, { once: true });
+    child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(0, maxChars); publish(); });
+    child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(0, maxChars); publish(); });
+    child.on("error", (error) => finish({ label: command, ...errorResult(error) }));
+    child.on("close", (code) => finish(commandResult({ stdout, stderr, code, killed }, command)));
+  });
 }
 
 function text(value: unknown) {
@@ -181,7 +215,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         runledger: configuredCommand("KUJO_RUNLEDGER_BIN", "runledger"),
       };
       const availability = Object.fromEntries(await Promise.all(Object.entries(binaries).map(async ([name, binary]) => [
-        name, { command: binary, ...(await exec(pi, binary, ["--version"], workspace, signal, 10_000)) },
+        name, { command: binary, ...(await exec(pi, binary, ["--version"], workspace, signal, 10_000) as any) },
       ]))) as Record<string, unknown>;
       const kujoResult: any = availability.kujo;
       const actualVersion = versionFromOutput(kujoResult.output || "");

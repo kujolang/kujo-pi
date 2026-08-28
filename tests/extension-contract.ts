@@ -47,6 +47,14 @@ const rejectedPath = await byName("kujo_check").execute("4", { file: "../outside
 assert.equal(rejectedPath.details.status, "configuration_error");
 const approval = await byName("kujo_shipcheck").execute("5", {}, undefined, undefined, ctx);
 assert.equal(approval.details.status, "approval_required");
+const previousKujoBin = process.env.KUJO_BIN;
+process.env.KUJO_BIN = process.execPath;
+const updates: any[] = [];
+const streamed = await byName("kujo_status").execute("stream", {}, undefined, (update: any) => updates.push(update), ctx);
+assert.equal(streamed.details.status, "success");
+assert.ok(updates.length >= 2, "streaming execution should publish start and completion updates");
+if (previousKujoBin === undefined) delete process.env.KUJO_BIN;
+else process.env.KUJO_BIN = previousKujoBin;
 execMode = "success";
 const approvedCtx = { ...ctx, hasUI: true };
 const fixtures: Array<[string, Record<string, unknown>]> = [
