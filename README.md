@@ -13,7 +13,7 @@ This is production-ready as a thin, local-first integration layer—not a univer
 
 ## Install
 
-Install from the Pi package registry after npm publication:
+Install from npm after the first registry release:
 
 ```bash
 pi install npm:@kujolang/kujo-pi@0.3.0

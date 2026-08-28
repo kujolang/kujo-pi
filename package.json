@@ -11,7 +11,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/kujolang/kujo-pi.git"
+    "url": "git+https://github.com/kujolang/kujo-pi.git"
   },
   "homepage": "https://github.com/kujolang/kujo-pi#readme",
   "engines": {
