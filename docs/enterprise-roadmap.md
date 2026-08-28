@@ -36,7 +36,7 @@ Current implementation status: ranks 1–11 have local implementations, includin
 - Local and remote service profiles document HTTPS, audience, token, and loopback requirements.
 - `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI, configured service health endpoints, and (when `KUJO_PI_ECOSYSTEM_ROOT` is set) the local deterministic adapter matrix.
 - The local integration matrix uses a temporary git fixture and Dispatch's reviewed routed workflow, so it exercises canonical entrypoints without mutating ecosystem repositories or requiring provider credentials.
-- Release automation publishes provenance-bearing npm releases from immutable version tags when organization credentials are present.
+- Release automation is configured for npm trusted publishing through GitHub Actions OIDC; once the package's npm trusted-publisher relationship is configured, immutable version tags publish with automatic provenance and no long-lived npm token.
 - npm publication was attempted for `@kujolang/kujo-pi@0.3.0`; npm authentication succeeded but publication requires an interactive one-time password, so no package was published.
 - The fixture matrix executes every local CLI adapter through success, missing-dependency, timeout, approval, and path-containment cases.
 
