@@ -13,4 +13,4 @@ Kujo Pi is a Pi extension. Installing it gives code in this repository the same 
 
 ## Reporting
 
-Do not open a public issue for an active vulnerability. Email the maintainers through the security contact listed in the GitHub repository, including reproduction steps, affected revision, and impact. Please do not include credentials or personal data in reports.
+Do not open a public issue for an active vulnerability. Use the repository's [private GitHub security advisory form](https://github.com/kujolang/kujo-pi/security/advisories/new), including reproduction steps, affected revision, and impact. Please do not include credentials or personal data in reports.

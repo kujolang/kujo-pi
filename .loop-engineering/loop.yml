@@ -1,4 +1,4 @@
-objective: "Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation."
+objective: "Review and harden Kujo Pi for enterprise-grade security, performance, functionality, onboarding, and release presentation without regressions."
 checklist_file: ""
 max_iterations: 8
 max_no_progress: 2
@@ -25,6 +25,10 @@ eval_gates:
 
   - id: diff_check
     command: "git diff --check"
+    required: true
+
+  - id: dependency_audit
+    command: "npm audit --omit=dev --audit-level=high"
     required: true
 
 commit:
