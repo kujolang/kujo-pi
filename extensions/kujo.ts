@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, meetsMinimumVersion, sameOriginUrl, versionFromOutput, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, fetchWithRetry, meetsMinimumVersion, sameOriginUrl, versionFromOutput, workspacePath } from "../src/core.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
   onUpdate?.(toolResult({ ok: true, status: "running", label: command }));
@@ -60,7 +60,7 @@ function configuredCommand(name: string, fallback: string) {
 }
 
 function withWorkspace(parameters: any) {
-  return Type.Intersect([Type.Object({ workspace: Type.Optional(Type.String({ description: "Workspace subdirectory relative to Pi's current project" })) }), parameters]);
+  return Type.Intersect([Type.Object({ workspace: Type.Optional(Type.String({ maxLength: 1024, description: "Workspace subdirectory relative to Pi's current project" })) }), parameters]);
 }
 
 function serviceHeaders(prefix: string) {
@@ -249,7 +249,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
       try {
         const endpoint = sameOriginUrl(base, params.path || "/health");
-        const response = await fetch(endpoint, { signal, headers: serviceHeaders("KUJO_WATCHDOG") });
+        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, headers: serviceHeaders("KUJO_WATCHDOG") }), signal);
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "watchdog", ctx.cwd, result);
         return toolResult(result);

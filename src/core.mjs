@@ -126,6 +126,26 @@ export async function boundedResponse(response, maxChars = 12_000) {
   return truncateOutput(await response.text(), maxChars);
 }
 
+/** @param {(signal: AbortSignal) => Promise<Response>} request @param {AbortSignal|undefined} signal @param {number} [attempts] */
+export async function fetchWithRetry(request, signal, attempts = 3) {
+  let last;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await request(signal || AbortSignal.timeout(30_000));
+      if (response.status < 500 && response.status !== 408 && response.status !== 429) return response;
+      last = new Error(`remote service returned ${response.status}`);
+    } catch (error) {
+      last = error;
+      if (signal?.aborted) throw error;
+    }
+    if (attempt + 1 < attempts) await new Promise((resolveDelay, rejectDelay) => {
+      const timer = setTimeout(resolveDelay, 100 * (attempt + 1));
+      signal?.addEventListener("abort", () => { clearTimeout(timer); rejectDelay(signal.reason); }, { once: true });
+    });
+  }
+  throw last;
+}
+
 /** @param {unknown} value @param {number} [maxChars] */
 export function boundedJson(value, maxChars = 64_000) {
   const serialized = JSON.stringify(value);

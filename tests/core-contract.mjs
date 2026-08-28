@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, meetsMinimumVersion, receiptPath, sameOriginUrl, truncateOutput, versionFromOutput, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, fetchWithRetry, meetsMinimumVersion, receiptPath, sameOriginUrl, truncateOutput, versionFromOutput, workspacePath } from "../src/core.mjs";
 
 assert.ok(OPTIONAL_TOOLS.includes("kujo_dispatch_run"));
 assert.ok(OPTIONAL_TOOLS.includes("kujo_shipcheck"));
@@ -28,6 +28,9 @@ assert.equal(errorResult(new Error("ENOENT: command not found")).status, "depend
 assert.deepEqual(versionFromOutput("kujo 1.2.3"), [1, 2, 3]);
 assert.equal(meetsMinimumVersion([1, 3, 0], [1, 2, 9]), true);
 assert.equal(meetsMinimumVersion([1, 2, 3], [1, 2, 3]), true);
+let requests = 0;
+const retried = await fetchWithRetry(async () => ({ status: ++requests === 1 ? 503 : 200 }), undefined);
+assert.equal(retried.status, 200);
 const response = { text: async () => "x".repeat(20_000) };
 assert.equal((await boundedResponse(response, 10)).length, 47);
 
