@@ -98,6 +98,8 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
 | `KUJO_LEASH_URL` | Optional Leash daemon base URL |
 | `KUJO_LEASH_TOKEN` | Leash bearer token; never logged |
+| `KUJO_PI_MIN_KUJO_VERSION` | Optional minimum Kujo version for Doctor compatibility reporting |
+| `KUJO_PI_RECEIPTS` | Set to `1` to persist redacted per-call receipts in the Pi session |
 
 Example for a local Kujo checkout:
 
@@ -118,6 +120,7 @@ export KUJO_RAG_ENTRY="$HOME/src/rag/main.kujo"
 - User paths are resolved inside Pi's current workspace and passed as argument-array values, never interpolated into shell strings.
 - Command output is bounded before it is returned to the model.
 - Tokens and secrets are taken from environment variables and are never included in tool output.
+- Receipts are disabled by default; when enabled, they record only operation, workspace, status, exit code, duration, and timestamp.
 - Network integrations are disabled unless their URL and credentials are explicitly configured.
 - Configured HTTP integrations are restricted to the configured origin; user-supplied paths cannot redirect requests to another host.
 - Existing symlink targets are resolved before a workspace path is accepted, preventing repository-local links from escaping the workspace.

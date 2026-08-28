@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, sameOriginUrl, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, meetsMinimumVersion, sameOriginUrl, versionFromOutput, workspacePath } from "../src/core.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
   onUpdate?.(toolResult({ ok: true, status: "running", label: command }));
@@ -36,6 +36,19 @@ function renderResult(result: any, options: any, theme: any) {
   return new Text(`${theme.fg(details.ok ? "success" : "error", summary)}\n${theme.fg("toolOutput", output)}`, 0, 0);
 }
 
+function recordReceipt(pi: ExtensionAPI, operation: string, workspace: string, result: any) {
+  if (process.env.KUJO_PI_RECEIPTS !== "1") return;
+  pi.appendEntry("kujo-receipt", {
+    operation,
+    workspace,
+    ok: result.ok,
+    status: result.status,
+    code: result.code ?? null,
+    durationMs: result.durationMs ?? null,
+    recordedAt: new Date().toISOString(),
+  });
+}
+
 async function approve(ctx: any, title: string, message: string, requested: boolean) {
   if (requested) return true;
   if (!ctx.hasUI) return false;
@@ -44,6 +57,10 @@ async function approve(ctx: any, title: string, message: string, requested: bool
 
 function configuredCommand(name: string, fallback: string) {
   return process.env[name] || fallback;
+}
+
+function withWorkspace(parameters: any) {
+  return Type.Intersect([Type.Object({ workspace: Type.Optional(Type.String({ description: "Workspace subdirectory relative to Pi's current project" })) }), parameters]);
 }
 
 function commandFor(operation: string, params: any, cwd: string): [string, string[]] {
@@ -125,7 +142,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       name, label, description, parameters,
       renderResult,
       async execute(_id, params: any, signal, onUpdate, ctx) {
-        const cwd = ctx.cwd;
+        const cwd = workspacePath(ctx.cwd, params.workspace || ".");
         const approved = requiresApproval && await approve(ctx, `${label} approval`, `Allow ${label} to run in ${cwd}?`, params.confirm === true);
         if (requiresApproval && !approved) {
           return toolResult({ ok: false, status: "approval_required", message: "No approval was granted." });
@@ -133,6 +150,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         try {
           const [command, args] = commandFor(operation, { ...params, confirm: params.confirm === true || approved }, cwd);
           const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate);
+          recordReceipt(pi, operation, cwd, result);
           return toolResult(result);
         } catch (error) {
           return toolResult({ ok: false, status: "configuration_error", message: String(error) });
@@ -143,8 +161,9 @@ export default function kujoPi(pi: ExtensionAPI) {
 
   pi.registerTool({
     name: "kujo_doctor", label: "Kujo doctor", description: "Inspect Kujo Pi configuration and local tool availability without running project workflows.",
-    parameters: Type.Object({}),
-    async execute(_id, _params, signal, _onUpdate, ctx) {
+    parameters: withWorkspace(Type.Object({})),
+    async execute(_id, params, signal, _onUpdate, ctx) {
+      const workspace = workspacePath(ctx.cwd, params.workspace || ".");
       const binaries = {
         kujo: configuredCommand("KUJO_BIN", "kujo"),
         patchbrief: configuredCommand("KUJO_PATCHBRIEF_BIN", "patchbrief"),
@@ -153,13 +172,23 @@ export default function kujoPi(pi: ExtensionAPI) {
         runledger: configuredCommand("KUJO_RUNLEDGER_BIN", "runledger"),
       };
       const availability = Object.fromEntries(await Promise.all(Object.entries(binaries).map(async ([name, binary]) => [
-        name, { command: binary, ...(await exec(pi, binary, ["--version"], ctx.cwd, signal, 10_000)) },
+        name, { command: binary, ...(await exec(pi, binary, ["--version"], workspace, signal, 10_000)) },
       ]))) as Record<string, unknown>;
+      const kujoResult: any = availability.kujo;
+      const actualVersion = versionFromOutput(kujoResult.output || "");
+      const minimumText = process.env.KUJO_PI_MIN_KUJO_VERSION;
+      const minimumVersion = minimumText ? versionFromOutput(minimumText) : null;
       return toolResult({
         ok: true,
-        workspace: ctx.cwd,
+        workspace,
         projectTrusted: ctx.isProjectTrusted?.() ?? "unknown",
         availability,
+        compatibility: {
+          actualVersion,
+          minimumVersion,
+          meetsMinimum: meetsMinimumVersion(actualVersion, minimumVersion),
+          configuration: minimumText ? "KUJO_PI_MIN_KUJO_VERSION" : "not configured",
+        },
         network: {
           watchdog: Boolean(process.env.KUJO_WATCHDOG_URL),
           leash: Boolean(process.env.KUJO_LEASH_URL && process.env.KUJO_LEASH_TOKEN),
@@ -175,28 +204,29 @@ export default function kujoPi(pi: ExtensionAPI) {
     },
   });
 
-  registerKujoCliTool("kujo_status", "Kujo status", "Check that the Kujo CLI is installed.", Type.Object({}), "status");
-  registerKujoCliTool("kujo_check", "Kujo check", "Validate a Kujo source file without changing it.", Type.Object({ file: Type.String() }), "check");
-  registerKujoCliTool("kujo_scout", "Kujo Scout", "Create a repository intelligence report.", Type.Object({ path: Type.Optional(Type.String()), quick: Type.Optional(Type.Boolean()) }), "scout");
-  registerKujoCliTool("kujo_scent", "Kujo Scent", "Prepare scoped context with provenance and redaction metadata.", Type.Object({ task: Type.String(), path: Type.Optional(Type.String()) }), "scent");
-  registerKujoCliTool("kujo_review_changes", "Kujo review changes", "Generate a PatchBrief handoff for current changes.", Type.Object({}), "review");
-  registerKujoCliTool("kujo_changebucket", "Kujo ChangeBucket", "Measure current change footprint and blast radius.", Type.Object({}), "changebucket");
-  registerKujoCliTool("kujo_shipcheck", "Kujo ShipCheck", "Run release-readiness checks; use only when explicitly requested.", Type.Object({ confirm: Type.Optional(Type.Boolean()) }), "shipcheck", true);
-  registerKujoCliTool("kujo_mcp_make", "Kujo MCP make", "Generate a guarded, repo-specific MCP server and review artifacts.", Type.Object({ path: Type.Optional(Type.String()), artifacts: Type.Optional(Type.String()), confirm: Type.Optional(Type.Boolean()) }), "mcp", true);
-  registerKujoCliTool("kujo_agents_smoke", "Kujo Agents SDK smoke", "Run the deterministic offline Agents SDK example suite.", Type.Object({ confirm: Type.Optional(Type.Boolean()) }), "agents", true);
-  registerKujoCliTool("kujo_rag_query", "Kujo RAG query", "Query a configured local Kujo RAG index and return citations.", Type.Object({ question: Type.String(), namespace: Type.Optional(Type.String()) }), "rag");
-  registerKujoCliTool("kujo_dispatch_run", "Kujo Dispatch run", "Run a resumable, reviewable Dispatch workflow after explicit approval.", Type.Object({ task: Type.String(), workflow: Type.Optional(Type.String()), output: Type.Optional(Type.String()), confirm: Type.Optional(Type.Boolean()) }), "dispatch", true);
+  registerKujoCliTool("kujo_status", "Kujo status", "Check that the Kujo CLI is installed.", withWorkspace(Type.Object({})), "status");
+  registerKujoCliTool("kujo_check", "Kujo check", "Validate a Kujo source file without changing it.", withWorkspace(Type.Object({ file: Type.String() })), "check");
+  registerKujoCliTool("kujo_scout", "Kujo Scout", "Create a repository intelligence report.", withWorkspace(Type.Object({ path: Type.Optional(Type.String()), quick: Type.Optional(Type.Boolean()) })), "scout");
+  registerKujoCliTool("kujo_scent", "Kujo Scent", "Prepare scoped context with provenance and redaction metadata.", withWorkspace(Type.Object({ task: Type.String(), path: Type.Optional(Type.String()) })), "scent");
+  registerKujoCliTool("kujo_review_changes", "Kujo review changes", "Generate a PatchBrief handoff for current changes.", withWorkspace(Type.Object({})), "review");
+  registerKujoCliTool("kujo_changebucket", "Kujo ChangeBucket", "Measure current change footprint and blast radius.", withWorkspace(Type.Object({})), "changebucket");
+  registerKujoCliTool("kujo_shipcheck", "Kujo ShipCheck", "Run release-readiness checks; use only when explicitly requested.", withWorkspace(Type.Object({ confirm: Type.Optional(Type.Boolean()) })), "shipcheck", true);
+  registerKujoCliTool("kujo_mcp_make", "Kujo MCP make", "Generate a guarded, repo-specific MCP server and review artifacts.", withWorkspace(Type.Object({ path: Type.Optional(Type.String()), artifacts: Type.Optional(Type.String()), confirm: Type.Optional(Type.Boolean()) })), "mcp", true);
+  registerKujoCliTool("kujo_agents_smoke", "Kujo Agents SDK smoke", "Run the deterministic offline Agents SDK example suite.", withWorkspace(Type.Object({ confirm: Type.Optional(Type.Boolean()) })), "agents", true);
+  registerKujoCliTool("kujo_rag_query", "Kujo RAG query", "Query a configured local Kujo RAG index and return citations.", withWorkspace(Type.Object({ question: Type.String(), namespace: Type.Optional(Type.String()) })), "rag");
+  registerKujoCliTool("kujo_dispatch_run", "Kujo Dispatch run", "Run a resumable, reviewable Dispatch workflow after explicit approval.", withWorkspace(Type.Object({ task: Type.String(), workflow: Type.Optional(Type.String()), output: Type.Optional(Type.String()), confirm: Type.Optional(Type.Boolean()) })), "dispatch", true);
 
   pi.registerTool({
     name: "kujo_runledger", label: "Kujo RunLedger", description: "Start or finish a local RunLedger receipt using the installed RunLedger CLI.",
-    parameters: Type.Object({ action: Type.Union([Type.Literal("start"), Type.Literal("finish")]), runId: Type.Optional(Type.String()), task: Type.Optional(Type.String()), status: Type.Optional(Type.String()), verdict: Type.Optional(Type.String()), provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()) }),
+    parameters: withWorkspace(Type.Object({ action: Type.Union([Type.Literal("start"), Type.Literal("finish")]), runId: Type.Optional(Type.String()), task: Type.Optional(Type.String()), status: Type.Optional(Type.String()), verdict: Type.Optional(Type.String()), provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()) })),
     renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
-      const cwd = ctx.cwd;
+      const cwd = workspacePath(ctx.cwd, params.workspace || ".");
       const args = params.action === "start"
         ? ["start", "--provider", params.provider || "unknown", "--model", params.model || "unknown", "--task", params.task || "Pi task", "--repo", cwd]
         : ["finish", params.runId || "", "--status", params.status || "partial", "--verdict", params.verdict || "Pi session finished", "--repo", cwd];
       const result = await exec(pi, process.env.KUJO_RUNLEDGER_BIN || "runledger", args, cwd, signal, 120_000, _onUpdate);
+      recordReceipt(pi, "runledger", cwd, result);
       return toolResult(result);
     },
   });
@@ -211,9 +241,13 @@ export default function kujoPi(pi: ExtensionAPI) {
       try {
         const endpoint = sameOriginUrl(base, params.path || "/health");
         const response = await fetch(endpoint, { signal });
-        return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
+        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
+        recordReceipt(pi, "watchdog", ctx.cwd, result);
+        return toolResult(result);
       } catch (error) {
-        return toolResult(errorResult(error));
+        const result = errorResult(error);
+        recordReceipt(pi, "watchdog", ctx.cwd, result);
+        return toolResult(result);
       }
     },
   });
@@ -229,9 +263,13 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base || !token) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_LEASH_URL and KUJO_LEASH_TOKEN to opt into Leash." });
       try {
         const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: boundedJson(params.event) });
-        return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
+        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
+        recordReceipt(pi, "leash", ctx.cwd, result);
+        return toolResult(result);
       } catch (error) {
-        return toolResult(errorResult(error));
+        const result = errorResult(error);
+        recordReceipt(pi, "leash", ctx.cwd, result);
+        return toolResult(result);
       }
     },
   });

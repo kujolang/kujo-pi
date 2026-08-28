@@ -75,6 +75,21 @@ export function errorResult(error) {
   return { ok: false, status, message };
 }
 
+/** @param {string} value */
+export function versionFromOutput(value) {
+  const match = value.match(/(?:^|\s|v)(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+/** @param {number[]|null} actual @param {number[]|null} minimum */
+export function meetsMinimumVersion(actual, minimum) {
+  if (!actual || !minimum) return null;
+  for (let index = 0; index < 3; index += 1) {
+    if (actual[index] !== minimum[index]) return actual[index] > minimum[index];
+  }
+  return true;
+}
+
 /** @param {string} workspace @param {string} runId */
 export function receiptPath(workspace, runId) {
   if (!/^[a-zA-Z0-9._-]{1,96}$/.test(runId)) {

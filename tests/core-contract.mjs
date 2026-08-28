@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, receiptPath, sameOriginUrl, truncateOutput, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, meetsMinimumVersion, receiptPath, sameOriginUrl, truncateOutput, versionFromOutput, workspacePath } from "../src/core.mjs";
 
 assert.ok(OPTIONAL_TOOLS.includes("kujo_dispatch_run"));
 assert.ok(OPTIONAL_TOOLS.includes("kujo_shipcheck"));
@@ -25,6 +25,9 @@ assert.throws(() => sameOriginUrl("http://example.com", "/health"), /HTTPS/);
 assert.equal(boundedJson({ ok: true }), '{"ok":true}');
 assert.throws(() => boundedJson("x".repeat(100), 10), /exceeds/);
 assert.equal(errorResult(new Error("ENOENT: command not found")).status, "dependency_unavailable");
+assert.deepEqual(versionFromOutput("kujo 1.2.3"), [1, 2, 3]);
+assert.equal(meetsMinimumVersion([1, 3, 0], [1, 2, 9]), true);
+assert.equal(meetsMinimumVersion([1, 2, 3], [1, 2, 3]), true);
 const response = { text: async () => "x".repeat(20_000) };
 assert.equal((await boundedResponse(response, 10)).length, 47);
 
