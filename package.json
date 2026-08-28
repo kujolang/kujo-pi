@@ -14,6 +14,22 @@
     "url": "https://github.com/kujolang/kujo-pi.git"
   },
   "homepage": "https://github.com/kujolang/kujo-pi#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "src",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE",
+    "docs"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "bash tests/release-readiness.sh",
     "test:extension": "tsx tests/extension-contract.ts",

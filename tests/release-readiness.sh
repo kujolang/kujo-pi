@@ -15,6 +15,7 @@ rg -n 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' extensions/kujo.t
 rg -n 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs >/dev/null
 node tests/core-contract.mjs
 npm run test:extension
+node tests/package-contract.mjs
 git diff --check
 
 echo "kujo-pi release-readiness validation passed"
