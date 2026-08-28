@@ -17,7 +17,7 @@ This is the next-session work list for making `@kujolang/kujo-pi` a shining exam
 | 11 | Multi-workspace and monorepo targeting | Functionality | 3–5 days | High | Tools can target a validated workspace root while retaining containment and project-trust checks. |
 | 12 | npm publication and release automation | Distribution | 1–2 days | Low | Versioned npm install works, GitHub release notes are generated, and package contents are reproducible. |
 
-Current implementation status: ranks 1, 3, 4, 6, 7, 8, 9, and 10 have local implementations; ranks 2, 5, 11, and 12 remain active. Live service execution and npm publication still require external environments or organization credentials.
+Current implementation status: ranks 1, 2, 3, 4, 6, 7, 8, 9, 10, and 11 have local implementations; rank 5 has bounded start/end progress but not subprocess streaming, and rank 12 remains external. Live service execution and npm publication still require external environments or organization credentials.
 
 ## Review findings addressed in the current pass
 
@@ -36,6 +36,7 @@ Current implementation status: ranks 1, 3, 4, 6, 7, 8, 9, and 10 have local impl
 - Local and remote service profiles document HTTPS, audience, token, and loopback requirements.
 - `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI and configured service health endpoints.
 - Release automation publishes provenance-bearing npm releases from immutable version tags when organization credentials are present.
+- The fixture matrix executes every local CLI adapter through success, missing-dependency, timeout, approval, and path-containment cases.
 
 ## Explicit non-goals
 

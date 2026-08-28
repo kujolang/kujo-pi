@@ -47,6 +47,24 @@ const rejectedPath = await byName("kujo_check").execute("4", { file: "../outside
 assert.equal(rejectedPath.details.status, "configuration_error");
 const approval = await byName("kujo_shipcheck").execute("5", {}, undefined, undefined, ctx);
 assert.equal(approval.details.status, "approval_required");
+execMode = "success";
+const approvedCtx = { ...ctx, hasUI: true };
+const fixtures: Array<[string, Record<string, unknown>]> = [
+  ["kujo_scout", {}],
+  ["kujo_scent", { task: "fixture" }],
+  ["kujo_review_changes", {}],
+  ["kujo_changebucket", {}],
+  ["kujo_shipcheck", { confirm: true }],
+  ["kujo_mcp_make", { confirm: true }],
+  ["kujo_agents_smoke", { confirm: true }],
+  ["kujo_rag_query", { question: "fixture" }],
+  ["kujo_dispatch_run", { task: "fixture", confirm: true }],
+  ["kujo_runledger", { action: "start" }],
+];
+for (const [name, params] of fixtures) {
+  const result = await byName(name).execute("fixture", params, undefined, undefined, approvedCtx);
+  assert.equal(result.details.status, "success", `${name} fixture failed`);
+}
 console.log("extension contract validation passed");
 }
 
