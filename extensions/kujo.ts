@@ -29,7 +29,8 @@ function streamExec(command: string, args: string[], cwd: string, signal: AbortS
     let killed = false;
     let settled = false;
     let lastUpdate = 0;
-    const child = spawn(command, args, { cwd, shell: false, windowsHide: true });
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const child = spawn(command, args, { cwd, shell: false, windowsHide: true, detached: process.platform !== "win32" });
     const publish = () => {
       const now = Date.now();
       if (now - lastUpdate < 200) return;
@@ -40,11 +41,26 @@ function streamExec(command: string, args: string[], cwd: string, signal: AbortS
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       onUpdate(toolResult(result));
       resolve(result);
     };
-    const timer = setTimeout(() => { killed = true; child.kill("SIGTERM"); }, timeout);
-    signal?.addEventListener("abort", () => { killed = true; child.kill("SIGTERM"); }, { once: true });
+    const killChild = (signalName: NodeJS.Signals) => {
+      try {
+        if (process.platform !== "win32" && child.pid) process.kill(-child.pid, signalName);
+        else child.kill(signalName);
+      } catch {
+        // The process may have exited between timeout/cancellation and cleanup.
+      }
+    };
+    const terminate = () => {
+      if (settled) return;
+      killed = true;
+      killChild("SIGTERM");
+      killTimer = setTimeout(() => killChild("SIGKILL"), 1_000);
+    };
+    const timer = setTimeout(terminate, timeout);
+    signal?.addEventListener("abort", terminate, { once: true });
     child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(0, maxChars); publish(); });
     child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(0, maxChars); publish(); });
     child.on("error", (error) => finish({ label: command, ...errorResult(error) }));
@@ -120,7 +136,7 @@ function commandFor(operation: string, params: any, cwd: string): [string, strin
     case "mcp": return cli("KUJO_BIN", "kujo", ["run", entry("KUJO_MCP_ENTRY") || "mcp.kujo", "--interpreter", "make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")]);
     case "rag": return cli("KUJO_BIN", "kujo", ["run", entry("KUJO_RAG_ENTRY") || "main.kujo", "--interpreter", "query", "--question", params.question, ...(params.namespace ? ["--namespace", params.namespace] : [])]);
     case "agents": return cli("KUJO_BIN", "kujo", ["run", entry("KUJO_AGENTS_SMOKE_ENTRY") || "examples/examples_smoke_runner.kujo", "--interpreter"]);
-    case "dispatch": return cli("KUJO_BIN", "kujo", ["run", entry("KUJO_DISPATCH_ENTRY") || "dispatch.kujo", "--interpreter", "demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), ...(params.confirm ? ["--yes"] : [])]);
+    case "dispatch": return cli("KUJO_BIN", "kujo", ["run", entry("KUJO_DISPATCH_ENTRY") || "dispatch.kujo", "demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), ...(params.confirm ? ["--yes"] : [])]);
     default: throw new Error(`Unsupported Kujo operation: ${operation}`);
   }
 }
@@ -283,7 +299,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
       try {
         const endpoint = sameOriginUrl(base, params.path || "/health");
-        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, headers: serviceHeaders("KUJO_WATCHDOG") }), signal);
+        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_WATCHDOG") }), signal);
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "watchdog", ctx.cwd, result);
         return toolResult(result);
@@ -306,7 +322,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base || !token) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_LEASH_URL and KUJO_LEASH_TOKEN to opt into Leash." });
       try {
         const headers = { ...serviceHeaders("KUJO_LEASH"), authorization: `Bearer ${token}`, "content-type": "application/json" };
-        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers, body: boundedJson(params.event) });
+        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, redirect: "error", headers, body: boundedJson(params.event) });
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "leash", ctx.cwd, result);
         return toolResult(result);

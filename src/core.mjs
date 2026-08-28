@@ -123,7 +123,29 @@ export function sameOriginUrl(base, path = "/health") {
 
 /** @param {Response} response @param {number} [maxChars] */
 export async function boundedResponse(response, maxChars = 12_000) {
-  return truncateOutput(await response.text(), maxChars);
+  if (!response.body?.getReader) return truncateOutput(await response.text(), maxChars);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let output = "";
+  let truncated = false;
+  try {
+    while (output.length < maxChars) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+      const remaining = Math.max(1, maxChars - output.length);
+      const readLimit = Math.min(bytes.length, remaining * 4 + 4);
+      output += decoder.decode(bytes.slice(0, readLimit), { stream: true });
+      if (output.length >= maxChars || bytes.length > readLimit) {
+        truncated = true;
+        await reader.cancel();
+      }
+    }
+    output += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  return truncated ? truncateOutput(`${output}x`, maxChars) : output;
 }
 
 /** @param {(signal: AbortSignal) => Promise<Response>} request @param {AbortSignal|undefined} signal @param {number} [attempts] */

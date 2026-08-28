@@ -33,5 +33,14 @@ const retried = await fetchWithRetry(async () => ({ status: ++requests === 1 ? 5
 assert.equal(retried.status, 200);
 const response = { text: async () => "x".repeat(20_000) };
 assert.equal((await boundedResponse(response, 10)).length, 47);
+let cancelled = false;
+const streamedResponse = {
+  body: new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode("x".repeat(20_000))); },
+    cancel() { cancelled = true; },
+  }),
+};
+assert.equal((await boundedResponse(streamedResponse, 10)).length, 47);
+assert.equal(cancelled, true);
 
 console.log("core contract validation passed");

@@ -7,6 +7,7 @@ import kujoPi from "../extensions/kujo.ts";
 const tools: Array<{ name: string; renderResult?: unknown }> = [];
 const commands: string[] = [];
 const handlers: string[] = [];
+const execCalls: Array<{ command: string; args: string[] }> = [];
 let execMode: "success" | "missing" | "timeout" = "success";
 const pi = {
   registerCommand(name: string) { commands.push(name); },
@@ -14,7 +15,8 @@ const pi = {
   on(name: string) { handlers.push(name); },
   getActiveTools() { return ["read"]; },
   setActiveTools() {},
-  async exec() {
+  async exec(command: string, args: string[]) {
+    execCalls.push({ command, args });
     if (execMode === "missing") throw new Error("ENOENT: command not found");
     if (execMode === "timeout") throw new Error("operation timed out");
     return { stdout: "kujo 1.2.3", stderr: "", code: 0, killed: false };
@@ -73,6 +75,20 @@ for (const [name, params] of fixtures) {
   const result = await byName(name).execute("fixture", params, undefined, undefined, approvedCtx);
   assert.equal(result.details.status, "success", `${name} fixture failed`);
 }
+const dispatchCall = execCalls.find(({ args }) => args.includes("dispatch.kujo"));
+assert.deepEqual(dispatchCall?.args.slice(0, 3), ["run", "dispatch.kujo", "demo"], "Dispatch must use its command surface, not the interpreter flag");
+const previousFetch = globalThis.fetch;
+let watchdogFetchOptions: RequestInit | undefined;
+process.env.KUJO_WATCHDOG_URL = "http://127.0.0.1:4318";
+globalThis.fetch = async (_input, init) => {
+  watchdogFetchOptions = init;
+  return { ok: true, status: 200, text: async () => "ok" } as Response;
+};
+const watchdog = await byName("kujo_watchdog").execute("health", {}, undefined, undefined, ctx);
+assert.equal(watchdog.details.status, "success");
+assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
+globalThis.fetch = previousFetch;
+delete process.env.KUJO_WATCHDOG_URL;
 console.log("extension contract validation passed");
 }
 
