@@ -1,0 +1,40 @@
+objective: "Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation."
+checklist_file: ""
+max_iterations: 8
+max_no_progress: 2
+max_consecutive_failures: 3
+
+allowed_actions:
+  - read_files
+  - edit_files
+  - run_tests
+  - commit_local_changes
+  - push_changes
+
+blocked_actions:
+  - deploy
+  - destructive_cleanup
+  - production_config_change
+
+eval_gates:
+  - id: release_readiness
+    command: "npm test"
+    required: true
+    when_files_match:
+      - "**"
+
+  - id: diff_check
+    command: "git diff --check"
+    required: true
+
+commit:
+  enabled: true
+  strategy: small_meaningful
+  push: true
+
+memory:
+  enabled: false
+  provider: strata
+  project: "Agent Notes"
+  mode: consolidate
+  retrieval_tests: true

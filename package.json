@@ -1,0 +1,25 @@
+{
+  "name": "@kujolang/kujo-pi",
+  "version": "0.1.0",
+  "description": "Opt-in Pi package for Kujo skills, repository intelligence, and review artifacts.",
+  "license": "MIT",
+  "keywords": ["pi-package", "kujo", "agent-skills", "coding-agent"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kujolang/kujo-pi.git"
+  },
+  "homepage": "https://github.com/kujolang/kujo-pi#readme",
+  "scripts": {
+    "test": "bash tests/release-readiness.sh",
+    "format:check": "git diff --check"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions/kujo.ts"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  }
+}

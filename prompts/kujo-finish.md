@@ -1,0 +1,1 @@
+Review this work with Kujo. Start with a PatchBrief handoff, run the narrowest relevant checks, and summarize evidence and unresolved risks. Do not commit, publish, or perform external mutations without my explicit approval.
