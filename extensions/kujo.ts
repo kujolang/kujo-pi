@@ -63,6 +63,15 @@ function withWorkspace(parameters: any) {
   return Type.Intersect([Type.Object({ workspace: Type.Optional(Type.String({ description: "Workspace subdirectory relative to Pi's current project" })) }), parameters]);
 }
 
+function serviceHeaders(prefix: string) {
+  const headers: Record<string, string> = { accept: "application/json" };
+  const token = process.env[`${prefix}_TOKEN`];
+  const audience = process.env[`${prefix}_AUDIENCE`];
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (audience) headers["x-kujo-audience"] = audience;
+  return headers;
+}
+
 function commandFor(operation: string, params: any, cwd: string): [string, string[]] {
   const entry = (name: string) => process.env[name];
   const cli = (name: string, fallback: string, args: string[]) => [entry(name) || fallback, args] as [string, string[]];
@@ -240,7 +249,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
       try {
         const endpoint = sameOriginUrl(base, params.path || "/health");
-        const response = await fetch(endpoint, { signal });
+        const response = await fetch(endpoint, { signal, headers: serviceHeaders("KUJO_WATCHDOG") });
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "watchdog", ctx.cwd, result);
         return toolResult(result);
@@ -262,7 +271,8 @@ export default function kujoPi(pi: ExtensionAPI) {
       const token = process.env.KUJO_LEASH_TOKEN;
       if (!base || !token) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_LEASH_URL and KUJO_LEASH_TOKEN to opt into Leash." });
       try {
-        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: boundedJson(params.event) });
+        const headers = { ...serviceHeaders("KUJO_LEASH"), authorization: `Bearer ${token}`, "content-type": "application/json" };
+        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers, body: boundedJson(params.event) });
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "leash", ctx.cwd, result);
         return toolResult(result);

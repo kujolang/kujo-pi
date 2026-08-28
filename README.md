@@ -96,8 +96,10 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | `KUJO_RAG_ENTRY` | RAG `main.kujo` path |
 | `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
+| `KUJO_WATCHDOG_TOKEN` / `KUJO_WATCHDOG_AUDIENCE` | Optional Watchdog bearer token and audience header |
 | `KUJO_LEASH_URL` | Optional Leash daemon base URL |
 | `KUJO_LEASH_TOKEN` | Leash bearer token; never logged |
+| `KUJO_LEASH_AUDIENCE` | Optional Leash audience header |
 | `KUJO_PI_MIN_KUJO_VERSION` | Optional minimum Kujo version for Doctor compatibility reporting |
 | `KUJO_PI_RECEIPTS` | Set to `1` to persist redacted per-call receipts in the Pi session |
 
@@ -153,6 +155,8 @@ npm test
 The test suite is offline and validates the package manifest, TypeScript extension contract, path containment, output bounds, and safety-oriented integration metadata.
 
 The prioritized hardening and expansion backlog is documented in [docs/enterprise-roadmap.md](docs/enterprise-roadmap.md).
+
+Recommended local and remote service profiles are documented in [docs/service-profiles.md](docs/service-profiles.md). Live adapter checks are available with `KUJO_PI_LIVE=1 npm run test:live` and never run in the default offline test suite.
 
 ## Scope boundary
 

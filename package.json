@@ -33,6 +33,7 @@
   "scripts": {
     "test": "bash tests/release-readiness.sh",
     "test:extension": "tsx tests/extension-contract.ts",
+    "test:live": "node tests/live-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "format:check": "git diff --check"
   },
