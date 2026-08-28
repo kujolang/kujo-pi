@@ -1,14 +1,27 @@
 import assert from "node:assert/strict";
-import { OPTIONAL_TOOLS, commandResult, receiptPath, truncateOutput, workspacePath } from "../src/core.mjs";
+import { mkdtempSync, mkdirSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { OPTIONAL_TOOLS, boundedResponse, commandResult, receiptPath, sameOriginUrl, truncateOutput, workspacePath } from "../src/core.mjs";
 
 assert.ok(OPTIONAL_TOOLS.includes("kujo_dispatch_run"));
-assert.equal(workspacePath("/tmp/project", "src/index.ts"), "/tmp/project/src/index.ts");
-assert.throws(() => workspacePath("/tmp/project", "../outside"), /inside/);
+assert.ok(OPTIONAL_TOOLS.includes("kujo_shipcheck"));
+const root = mkdtempSync(join(tmpdir(), "kujo-pi-"));
+assert.equal(workspacePath(root, "src/index.ts"), join(root, "src/index.ts"));
+assert.throws(() => workspacePath(root, "../outside"), /inside/);
+mkdirSync(join(root, "safe"));
+symlinkSync(tmpdir(), join(root, "escape"));
+assert.throws(() => workspacePath(root, "escape/file.txt"), /inside/);
 assert.equal(truncateOutput("abcdef", 3), "abc\n\n[output truncated at 3 characters]");
 assert.deepEqual(commandResult({ stdout: "ok", stderr: "", code: 0, killed: false }, "test"), {
   ok: true, label: "test", code: 0, killed: false, output: "ok",
 });
-assert.match(receiptPath("/tmp/project", "run-1"), /\.kujo\/pi\/receipts\/run-1\.json$/);
-assert.throws(() => receiptPath("/tmp/project", "../bad"), /runId/);
+assert.match(receiptPath(root, "run-1"), /\.kujo\/pi\/receipts\/run-1\.json$/);
+assert.throws(() => receiptPath(root, "../bad"), /runId/);
+assert.equal(sameOriginUrl("http://127.0.0.1:4318", "/health").href, "http://127.0.0.1:4318/health");
+assert.throws(() => sameOriginUrl("http://127.0.0.1:4318", "https://example.com/"), /begin with/);
+assert.throws(() => sameOriginUrl("http://127.0.0.1:4318", "//example.com/"), /configured origin/);
+const response = { text: async () => "x".repeat(20_000) };
+assert.equal((await boundedResponse(response, 10)).length, 47);
 
 console.log("core contract validation passed");

@@ -1,9 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { OPTIONAL_TOOLS, commandResult, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedResponse, commandResult, sameOriginUrl, workspacePath } from "../src/core.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000) {
-  return commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command);
+  try {
+    return commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command);
+  } catch (error) {
+    return { ok: false, label: command, code: null, killed: false, output: `Unable to execute ${command}: ${String(error)}` };
+  }
 }
 
 function text(value: unknown) {
@@ -44,15 +48,32 @@ function commandFor(operation: string, params: any, cwd: string): [string, strin
 }
 
 export default function kujoPi(pi: ExtensionAPI) {
+  const allTools = ["kujo_doctor", "kujo_status", "kujo_check", ...OPTIONAL_TOOLS]
+    .filter((name, index, names) => names.indexOf(name) === index);
+
   pi.registerCommand("kujo", {
-    description: "Inspect or enable Kujo capabilities",
+    description: "List, enable, or disable Kujo capabilities",
     handler: async (args, ctx) => {
       const requested = args.trim();
       if (!requested) {
-        ctx.ui.notify("Kujo tools are available. Ask Pi to use kujo_tools to discover or enable them.", "info");
+        ctx.ui.notify("Kujo tools are available. Use /kujo list or /kujo enable <tool>.", "info");
         return;
       }
-      ctx.ui.notify(`Kujo request noted: ${requested}`, "info");
+      const [action, ...names] = requested.split(/\s+/);
+      if (action === "list") {
+        ctx.ui.notify(`Kujo tools: ${allTools.join(", ")}`, "info");
+        return;
+      }
+      if (action === "enable" || action === "disable") {
+        const selected = names.filter((name) => allTools.includes(name));
+        const unknown = names.filter((name) => !allTools.includes(name));
+        const active = new Set(pi.getActiveTools());
+        for (const name of selected) action === "enable" ? active.add(name) : active.delete(name);
+        pi.setActiveTools([...active]);
+        ctx.ui.notify(`${action}d ${selected.join(", ") || "no tools"}${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`, "info");
+        return;
+      }
+      ctx.ui.notify("Usage: /kujo list | /kujo enable <tool> | /kujo disable <tool>", "warning");
     },
   });
 
@@ -61,11 +82,11 @@ export default function kujoPi(pi: ExtensionAPI) {
     description: "List Kujo Pi capabilities and enable optional integrations for this session.",
     parameters: Type.Object({ enable: Type.Optional(Type.Array(Type.String())) }),
     async execute(_id, params) {
-      const all = ["kujo_doctor", "kujo_status", "kujo_check", "kujo_scout", "kujo_scent", "kujo_review_changes", "kujo_changebucket", "kujo_shipcheck", ...OPTIONAL_TOOLS];
+      const all = allTools;
       const unknown = (params.enable || []).filter((name: string) => !all.includes(name));
       const enabled = (params.enable || []).filter((name: string) => all.includes(name));
       if (enabled.length) pi.setActiveTools([...new Set([...pi.getActiveTools(), ...enabled])]);
-      return toolResult({ available: all, enabled, unknown, note: "Optional tools are inactive until explicitly enabled." });
+      return toolResult({ available: all, active: pi.getActiveTools(), enabled, optional: OPTIONAL_TOOLS, unknown, note: "Optional tools are inactive until explicitly enabled." });
     },
   });
 
@@ -100,11 +121,9 @@ export default function kujoPi(pi: ExtensionAPI) {
         shipcheck: configuredCommand("KUJO_SHIPCHECK_BIN", "shipcheck"),
         runledger: configuredCommand("KUJO_RUNLEDGER_BIN", "runledger"),
       };
-      const availability = {} as Record<string, unknown>;
-      for (const [name, binary] of Object.entries(binaries)) {
-        const result = await pi.exec(binary, ["--version"], { cwd: ctx.cwd, signal, timeout: 10_000 });
-        availability[name] = { command: binary, ...commandResult(result, binary) };
-      }
+      const availability = Object.fromEntries(await Promise.all(Object.entries(binaries).map(async ([name, binary]) => [
+        name, { command: binary, ...(await exec(pi, binary, ["--version"], ctx.cwd, signal, 10_000)) },
+      ]))) as Record<string, unknown>;
       return toolResult({
         ok: true,
         workspace: ctx.cwd,
@@ -156,9 +175,13 @@ export default function kujoPi(pi: ExtensionAPI) {
     async execute(_id, params: any, signal, _onUpdate, ctx) {
       const base = process.env.KUJO_WATCHDOG_URL;
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
-      const endpoint = new URL(params.path || "/health", base);
-      const response = await fetch(endpoint, { signal });
-      return toolResult({ ok: response.ok, status: response.status, body: await response.text() });
+      try {
+        const endpoint = sameOriginUrl(base, params.path || "/health");
+        const response = await fetch(endpoint, { signal });
+        return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
+      } catch (error) {
+        return toolResult({ ok: false, status: "request_error", message: String(error) });
+      }
     },
   });
 
@@ -170,8 +193,12 @@ export default function kujoPi(pi: ExtensionAPI) {
       const base = process.env.KUJO_LEASH_URL;
       const token = process.env.KUJO_LEASH_TOKEN;
       if (!base || !token) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_LEASH_URL and KUJO_LEASH_TOKEN to opt into Leash." });
-      const response = await fetch(new URL("/v1/intervention-events", base), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(params.event) });
-      return toolResult({ ok: response.ok, status: response.status, body: await response.text() });
+      try {
+        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(params.event) });
+        return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
+      } catch (error) {
+        return toolResult({ ok: false, status: "request_error", message: String(error) });
+      }
     },
   });
 
