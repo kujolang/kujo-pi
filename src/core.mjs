@@ -53,13 +53,26 @@ export function truncateOutput(value, maxChars = 12_000) {
 /** @param {{stdout: string, stderr: string, code: number, killed: boolean}} result @param {string} label */
 export function commandResult(result, label) {
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  const status = result.killed ? "timeout_or_cancelled" : result.code === 0 ? "success" : "command_failed";
   return {
     ok: result.code === 0 && !result.killed,
+    status,
     label,
     code: result.code,
     killed: result.killed,
     output: truncateOutput(output || `${label} completed without output.`),
   };
+}
+
+/** @param {unknown} error */
+export function errorResult(error) {
+  const message = String(error);
+  const lower = message.toLowerCase();
+  const status = lower.includes("abort") ? "cancelled"
+    : lower.includes("timed out") || lower.includes("timeout") ? "timeout"
+      : lower.includes("not found") || lower.includes("enoent") ? "dependency_unavailable"
+        : "request_error";
+  return { ok: false, status, message };
 }
 
 /** @param {string} workspace @param {string} runId */
@@ -83,6 +96,10 @@ export function sameOriginUrl(base, path = "/health") {
   if (!/^https?:$/.test(configured.protocol) || configured.username || configured.password) {
     throw new Error("Configured service URL must use http(s) without embedded credentials");
   }
+  const localHost = /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(configured.hostname);
+  if (!localHost && configured.protocol !== "https:") {
+    throw new Error("Remote service URLs must use HTTPS; HTTP is limited to localhost");
+  }
   if (!path.startsWith("/")) throw new Error("Service paths must begin with '/'");
   const endpoint = new URL(path, configured);
   if (endpoint.origin !== configured.origin) throw new Error("Service path must stay on the configured origin");
@@ -92,4 +109,11 @@ export function sameOriginUrl(base, path = "/health") {
 /** @param {Response} response @param {number} [maxChars] */
 export async function boundedResponse(response, maxChars = 12_000) {
   return truncateOutput(await response.text(), maxChars);
+}
+
+/** @param {unknown} value @param {number} [maxChars] */
+export function boundedJson(value, maxChars = 64_000) {
+  const serialized = JSON.stringify(value);
+  if (serialized.length > maxChars) throw new Error(`JSON payload exceeds ${maxChars} characters`);
+  return serialized;
 }

@@ -1,12 +1,20 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { OPTIONAL_TOOLS, boundedResponse, commandResult, sameOriginUrl, workspacePath } from "../src/core.mjs";
+import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, errorResult, sameOriginUrl, workspacePath } from "../src/core.mjs";
 
-async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000) {
+async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
+  onUpdate?.(toolResult({ ok: true, status: "running", label: command }));
   try {
-    return commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command);
+    const started = Date.now();
+    const result = { ...commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command), durationMs: Date.now() - started };
+    onUpdate?.(toolResult(result));
+    return result;
   } catch (error) {
-    return { ok: false, label: command, code: null, killed: false, output: `Unable to execute ${command}: ${String(error)}` };
+    const result = { label: command, ...errorResult(error) };
+    onUpdate?.(toolResult(result));
+    return result;
   }
 }
 
@@ -16,6 +24,16 @@ function text(value: unknown) {
 
 function toolResult(value: unknown) {
   return { content: [{ type: "text" as const, text: text(value) }], details: value };
+}
+
+function renderResult(result: any, options: any, theme: any) {
+  const details = result.details || {};
+  const icon = details.ok ? "✓" : "✗";
+  const status = details.status || (details.ok ? "success" : "failed");
+  const summary = `${icon} ${details.label || "Kujo"} · ${status}`;
+  if (!options.expanded) return new Text(theme.fg(details.ok ? "success" : "error", summary), 0, 0);
+  const output = details.output || details.message || "No additional output.";
+  return new Text(`${theme.fg(details.ok ? "success" : "error", summary)}\n${theme.fg("toolOutput", output)}`, 0, 0);
 }
 
 async function approve(ctx: any, title: string, message: string, requested: boolean) {
@@ -64,6 +82,18 @@ export default function kujoPi(pi: ExtensionAPI) {
         ctx.ui.notify(`Kujo tools: ${allTools.join(", ")}`, "info");
         return;
       }
+      if (action === "init") {
+        const target = workspacePath(ctx.cwd, ".kujo/pi");
+        const readme = workspacePath(ctx.cwd, ".kujo/pi/README.md");
+        if (existsSync(readme)) {
+          ctx.ui.notify("Kujo project setup already exists; no files were changed.", "info");
+          return;
+        }
+        mkdirSync(target, { recursive: true });
+        writeFileSync(readme, "# Kujo Pi project data\n\nThis directory is managed by explicitly enabled Kujo Pi integrations.\n", { flag: "wx" });
+        ctx.ui.notify("Initialized .kujo/pi without overwriting existing files.", "info");
+        return;
+      }
       if (action === "enable" || action === "disable") {
         const selected = names.filter((name) => allTools.includes(name));
         const unknown = names.filter((name) => !allTools.includes(name));
@@ -73,7 +103,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         ctx.ui.notify(`${action}d ${selected.join(", ") || "no tools"}${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`, "info");
         return;
       }
-      ctx.ui.notify("Usage: /kujo list | /kujo enable <tool> | /kujo disable <tool>", "warning");
+      ctx.ui.notify("Usage: /kujo list | /kujo enable <tool> | /kujo disable <tool> | /kujo init", "warning");
     },
   });
 
@@ -93,7 +123,8 @@ export default function kujoPi(pi: ExtensionAPI) {
   const registerKujoCliTool = (name: string, label: string, description: string, parameters: any, operation: string, requiresApproval = false) => {
     pi.registerTool({
       name, label, description, parameters,
-      async execute(_id, params: any, signal, _onUpdate, ctx) {
+      renderResult,
+      async execute(_id, params: any, signal, onUpdate, ctx) {
         const cwd = ctx.cwd;
         const approved = requiresApproval && await approve(ctx, `${label} approval`, `Allow ${label} to run in ${cwd}?`, params.confirm === true);
         if (requiresApproval && !approved) {
@@ -101,7 +132,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         }
         try {
           const [command, args] = commandFor(operation, { ...params, confirm: params.confirm === true || approved }, cwd);
-          const result = await exec(pi, command, args, cwd, signal);
+          const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate);
           return toolResult(result);
         } catch (error) {
           return toolResult({ ok: false, status: "configuration_error", message: String(error) });
@@ -159,12 +190,13 @@ export default function kujoPi(pi: ExtensionAPI) {
   pi.registerTool({
     name: "kujo_runledger", label: "Kujo RunLedger", description: "Start or finish a local RunLedger receipt using the installed RunLedger CLI.",
     parameters: Type.Object({ action: Type.Union([Type.Literal("start"), Type.Literal("finish")]), runId: Type.Optional(Type.String()), task: Type.Optional(Type.String()), status: Type.Optional(Type.String()), verdict: Type.Optional(Type.String()), provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()) }),
+    renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
       const cwd = ctx.cwd;
       const args = params.action === "start"
         ? ["start", "--provider", params.provider || "unknown", "--model", params.model || "unknown", "--task", params.task || "Pi task", "--repo", cwd]
         : ["finish", params.runId || "", "--status", params.status || "partial", "--verdict", params.verdict || "Pi session finished", "--repo", cwd];
-      const result = await exec(pi, process.env.KUJO_RUNLEDGER_BIN || "runledger", args, cwd, signal);
+      const result = await exec(pi, process.env.KUJO_RUNLEDGER_BIN || "runledger", args, cwd, signal, 120_000, _onUpdate);
       return toolResult(result);
     },
   });
@@ -172,6 +204,7 @@ export default function kujoPi(pi: ExtensionAPI) {
   pi.registerTool({
     name: "kujo_watchdog", label: "Kujo Watchdog", description: "Read optional local Watchdog telemetry; network calls require an explicit configured URL.",
     parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+    renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
       const base = process.env.KUJO_WATCHDOG_URL;
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
@@ -180,7 +213,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         const response = await fetch(endpoint, { signal });
         return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
       } catch (error) {
-        return toolResult({ ok: false, status: "request_error", message: String(error) });
+        return toolResult(errorResult(error));
       }
     },
   });
@@ -188,16 +221,17 @@ export default function kujoPi(pi: ExtensionAPI) {
   pi.registerTool({
     name: "kujo_leash_approval", label: "Kujo Leash approval", description: "Send an explicit approval request to a configured local Leash daemon.",
     parameters: Type.Object({ event: Type.Record(Type.String(), Type.Unknown()), confirm: Type.Optional(Type.Boolean()) }),
+    renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
       if (!(await approve(ctx, "Leash approval", "Send this approval request to the configured Leash daemon?", params.confirm === true))) return toolResult({ ok: false, status: "approval_required" });
       const base = process.env.KUJO_LEASH_URL;
       const token = process.env.KUJO_LEASH_TOKEN;
       if (!base || !token) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_LEASH_URL and KUJO_LEASH_TOKEN to opt into Leash." });
       try {
-        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(params.event) });
+        const response = await fetch(sameOriginUrl(base, "/v1/intervention-events"), { method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: boundedJson(params.event) });
         return toolResult({ ok: response.ok, status: response.status, body: await boundedResponse(response) });
       } catch (error) {
-        return toolResult({ ok: false, status: "request_error", message: String(error) });
+        return toolResult(errorResult(error));
       }
     },
   });

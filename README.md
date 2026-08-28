@@ -47,12 +47,15 @@ Useful commands and prompts:
 /kujo
 /kujo list
 /kujo enable kujo_scout kujo_scent
+/kujo init
 /kujo-finish
 Use kujo_tools to see the available integrations.
 Enable kujo_changebucket and review the current changes.
 ```
 
 The package begins with side-effecting and service-backed integrations inactive. Ask Pi to enable a capability for the current session when you need it, or use `/kujo enable kujo_scout`.
+
+`/kujo init` creates only `.kujo/pi/README.md`, refuses to overwrite it, and is useful for making project-local Kujo artifacts visible to a team.
 
 ## Included capabilities
 

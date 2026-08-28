@@ -17,6 +17,8 @@ This is the next-session work list for making `@kujolang/kujo-pi` a shining exam
 | 11 | Multi-workspace and monorepo targeting | Functionality | 3–5 days | High | Tools can target a validated workspace root while retaining containment and project-trust checks. |
 | 12 | npm publication and release automation | Distribution | 1–2 days | Low | Versioned npm install works, GitHub release notes are generated, and package contents are reproducible. |
 
+Current implementation status: ranks 1, 4, and 9 are implemented in their local form; ranks 2, 3, 5, 6, 7, 8, 10, 11, and 12 remain active roadmap work. Live service validation and npm publication require external environments or organization credentials.
+
 ## Review findings addressed in the current pass
 
 - Side-effecting tools are opt-in rather than merely approval-gated.
@@ -25,6 +27,9 @@ This is the next-session work list for making `@kujolang/kujo-pi` a shining exam
 - HTTP response bodies are bounded and configured-origin constrained.
 - Workspace checks reject lexical escapes and symlink escapes.
 - `/kujo list`, `/kujo enable`, and `/kujo disable` provide a usable manual control surface.
+- `/kujo init` creates a minimal project-local marker without overwriting existing files.
+- Pi-native compact result renderers and start/end progress updates keep long-running calls legible without flooding the model context.
+- Command failures now carry a stable status taxonomy such as `dependency_unavailable`, `timeout`, `cancelled`, and `command_failed`.
 
 ## Explicit non-goals
 
