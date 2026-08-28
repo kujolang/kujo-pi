@@ -7,6 +7,8 @@
 
 An opt-in [Pi](https://pi.dev/) package that gives serious developers a quiet, reviewable bridge into the Kujo ecosystem.
 
+New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
+
 Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: repository intelligence, scoped context, deterministic checks, workflow orchestration, approvals, receipts, telemetry, retrieval, and guarded MCP generation.
 
 This is production-ready as a thin, local-first integration layer—not a universal guarantee that every Kujo service is installed, configured, or compatible with every organization. The `kujo_doctor` tool makes that boundary visible, while approvals and opt-in activation keep the package quiet until a developer asks for more.
