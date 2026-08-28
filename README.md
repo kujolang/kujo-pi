@@ -156,7 +156,7 @@ The test suite is offline and validates the package manifest, TypeScript extensi
 
 The prioritized hardening and expansion backlog is documented in [docs/enterprise-roadmap.md](docs/enterprise-roadmap.md).
 
-Recommended local and remote service profiles are documented in [docs/service-profiles.md](docs/service-profiles.md). Live adapter checks are available with `KUJO_PI_LIVE=1 npm run test:live` and never run in the default offline test suite.
+Recommended local and remote service profiles are documented in [docs/service-profiles.md](docs/service-profiles.md). The Kujo CLI and service checks are available with `KUJO_PI_LIVE=1 npm run test:live`; add `KUJO_PI_ECOSYSTEM_ROOT=/path/to/kujo-repos` to exercise the full local adapter matrix. Live checks never run in the default offline test suite.
 
 ## Scope boundary
 

@@ -34,7 +34,7 @@ Current implementation status: ranks 1–11 have local implementations, includin
 - CLI integrations accept a validated workspace subdirectory for monorepos and nested packages.
 - Optional redacted session receipts are available through `KUJO_PI_RECEIPTS=1`.
 - Local and remote service profiles document HTTPS, audience, token, and loopback requirements.
-- `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI and configured service health endpoints.
+- `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI, configured service health endpoints, and (when `KUJO_PI_ECOSYSTEM_ROOT` is set) the local deterministic adapter matrix.
 - Release automation publishes provenance-bearing npm releases from immutable version tags when organization credentials are present.
 - npm publication was attempted for `@kujolang/kujo-pi@0.3.0`; npm authentication succeeded but publication requires an interactive one-time password, so no package was published.
 - The fixture matrix executes every local CLI adapter through success, missing-dependency, timeout, approval, and path-containment cases.
