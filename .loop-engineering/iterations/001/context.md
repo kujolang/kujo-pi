@@ -1,6 +1,6 @@
 # Context
 
-- objective: Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation.
-- git_head: 4fb28cb
+- objective: Review and harden Kujo Pi for enterprise-grade security, performance, functionality, onboarding, and release presentation without regressions.
+- git_head: c32df0b
 - changed_files:
   - none

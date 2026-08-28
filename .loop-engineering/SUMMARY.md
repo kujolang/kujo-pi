@@ -10,13 +10,13 @@ success
 
 ## Verification
 
-- passed: release_readiness, diff_check
+- passed: release_readiness, diff_check, dependency_audit
 - blocked: none
 - failed: none
 
 ## Commits
 
-- Loop engineering: Build and verify the first opt-in Kujo Pi package with curated skills, safe CLI bridge tools, and reviewable documentation.
+- Loop engineering: Review and harden Kujo Pi for enterprise-grade security, performance, functionality, onboarding, and release presentation without regressions.
 
 ## Remaining
 
