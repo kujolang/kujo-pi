@@ -1,0 +1,8 @@
+.github/
+.loop-engineering/
+.pi/
+.kujo/
+node_modules/
+tests/
+tsconfig.json
+AGENTS.md

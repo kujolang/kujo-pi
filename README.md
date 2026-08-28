@@ -1,54 +1,156 @@
 # Kujo Pi
 
-An opt-in [Pi](https://pi.dev/) package for Kujo skills, repository intelligence, and review artifacts.
+[![Version](https://img.shields.io/badge/version-0.2.0-black)](https://github.com/kujolang/kujo-pi)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![built with Kujo](https://img.shields.io/badge/built%20with-Kujo-white.svg)](https://github.com/kujolang/kujo)
+[![CI](https://github.com/kujolang/kujo-pi/actions/workflows/ci.yml/badge.svg)](https://github.com/kujolang/kujo-pi/actions)
 
-Kujo Pi is intentionally quiet. It does not start background agents, install tools, change files, publish releases, or make network calls automatically. It gives Pi a small set of discoverable Kujo tools and lets the user choose when to use them.
+An opt-in [Pi](https://pi.dev/) package that gives serious developers a quiet, reviewable bridge into the Kujo ecosystem.
+
+Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: repository intelligence, scoped context, deterministic checks, workflow orchestration, approvals, receipts, telemetry, retrieval, and guarded MCP generation.
 
 ## Install
 
-From npm after publication:
+Install from the Pi package registry after npm publication:
 
 ```bash
-pi install npm:@kujolang/kujo-pi
+pi install npm:@kujolang/kujo-pi@0.2.0
 ```
 
-For a project-local install from GitHub:
+Install directly from GitHub today:
 
 ```bash
 pi install -l git:github.com/kujolang/kujo-pi@main
 ```
 
-The Kujo CLI must be available on `PATH`. The package does not bundle the Kujo runtime.
+`-l` keeps the package in the project-local `.pi/settings.json`. This is the recommended team-sharing mode. Global installation is also supported:
 
-## Included tools
+```bash
+pi install git:github.com/kujolang/kujo-pi@main
+```
 
-| Tool | Purpose | Side effects |
-|---|---|---|
-| `kujo_status` | Check the installed Kujo CLI | Read-only |
-| `kujo_check` | Validate a `.kujo` source file | Read-only |
-| `kujo_scout` | Profile a repository for structure, dependencies, routes, and risks | Writes Scout output according to the command configuration |
-| `kujo_scent` | Prepare scoped context with provenance and redaction metadata | Dry-run by default |
-| `kujo_review_changes` | Generate a PatchBrief handoff for current changes | Produces a review artifact |
+The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
 
-The package also includes three small skills: `kujo-way`, `kujo-review`, and `kujo-release`, plus the `/kujo-finish` prompt template.
+## First use
 
-## Design boundary
+Start Pi in a repository and ask naturally:
 
-This package is a client integration layer. Kujo remains responsible for its own CLI, runtime, capabilities, tools, and workflow contracts. Pi remains responsible for extension loading, user interaction, project trust, and tool activation.
+```text
+Use Kujo Scout to understand this repository, then prepare a scoped context pack for the task we discussed.
+```
 
-The first release deliberately does not include Dispatch, Agents SDK, MCP, Leash, Watchdog, or RAG adapters. Those should be added as separately opt-in layers after this small bridge has proven useful.
+Useful commands and prompts:
+
+```text
+/kujo
+/kujo-finish
+Use kujo_tools to see the available integrations.
+Enable kujo_changebucket and review the current changes.
+```
+
+The package begins with optional integrations inactive. Ask Pi to enable a capability for the current session when you need it.
+
+## Included capabilities
+
+| Capability | Default | Purpose | Side effects |
+|---|---:|---|---|
+| `kujo_tools` | active | Discover and enable integrations | Session-only tool activation |
+| `kujo_status` | active | Check Kujo installation | Read-only |
+| `kujo_check` | active | Validate `.kujo` source | Read-only |
+| `kujo_scout` | active | Map repository structure, dependencies, routes, and risks | Writes Scout output when configured |
+| `kujo_scent` | active | Prepare scoped context with provenance and redaction metadata | Dry-run by default |
+| `kujo_review_changes` | active | Generate a PatchBrief handoff | Writes a review artifact |
+| `kujo_changebucket` | opt-in | Measure change footprint and blast radius | Writes a report |
+| `kujo_shipcheck` | opt-in + approval | Run release-readiness checks | Executes project checks |
+| `kujo_mcp_make` | opt-in + approval | Generate a guarded repo-specific MCP server | Writes scaffold and artifacts |
+| `kujo_dispatch_run` | opt-in + approval | Run a resumable Dispatch workflow | Executes workflow and writes state |
+| `kujo_agents_smoke` | opt-in + approval | Run deterministic Agents SDK fixtures | Executes fixture suite |
+| `kujo_runledger` | opt-in | Start or finish a RunLedger receipt | Writes local ledger data |
+| `kujo_watchdog` | opt-in | Read configured Watchdog health/telemetry | Network only when configured |
+| `kujo_leash_approval` | opt-in + approval | Send an approval event to Leash | Network only when configured |
+| `kujo_rag_query` | opt-in | Query a local RAG index with citations | Read-only query |
+
+## Integration configuration
+
+The package uses installed Kujo tools when available. Set entrypoint variables when a tool is not installed as a standalone binary:
+
+| Variable | Meaning |
+|---|---|
+| `KUJO_BIN` | Kujo runtime executable; default `kujo` |
+| `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout binary or `.kujo` entrypoint |
+| `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent binary or `.kujo` entrypoint |
+| `KUJO_PATCHBRIEF_BIN` | PatchBrief executable; default `patchbrief` |
+| `KUJO_CHANGEBUCKET_BIN` | ChangeBucket executable; default `changebucket` |
+| `KUJO_SHIPCHECK_BIN` | ShipCheck executable; default `shipcheck` |
+| `KUJO_MCP_ENTRY` | MCP `mcp.kujo` path |
+| `KUJO_DISPATCH_ENTRY` | Dispatch `dispatch.kujo` path |
+| `KUJO_AGENTS_SMOKE_ENTRY` | Agents SDK fixture runner path |
+| `KUJO_RAG_ENTRY` | RAG `main.kujo` path |
+| `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
+| `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
+| `KUJO_LEASH_URL` | Optional Leash daemon base URL |
+| `KUJO_LEASH_TOKEN` | Leash bearer token; never logged |
+
+Example for a local Kujo checkout:
+
+```bash
+export KUJO_BIN="$HOME/src/kujo/target/release/kujo"
+export KUJO_SCOUT_ENTRY="$HOME/src/scout/scout.kujo"
+export KUJO_SCENT_ENTRY="$HOME/src/scent/scent.kujo"
+export KUJO_MCP_ENTRY="$HOME/src/mcp/mcp.kujo"
+export KUJO_DISPATCH_ENTRY="$HOME/src/dispatch/dispatch.kujo"
+export KUJO_AGENTS_SMOKE_ENTRY="$HOME/src/agents-sdk/examples/examples_smoke_runner.kujo"
+export KUJO_RAG_ENTRY="$HOME/src/rag/main.kujo"
+```
+
+## Safety model
+
+- Optional integrations are inactive until enabled.
+- Execution, release checks, MCP generation, Dispatch, Agents SDK runs, and Leash delivery require explicit approval.
+- User paths are resolved inside Pi's current workspace and passed as argument-array values, never interpolated into shell strings.
+- Command output is bounded before it is returned to the model.
+- Tokens and secrets are taken from environment variables and are never included in tool output.
+- Network integrations are disabled unless their URL and credentials are explicitly configured.
+- Kujo Pi does not claim to enforce Kujo or Pi permissions; the host, Kujo runtime, and configured external services remain authoritative.
+
+Pi extensions run with the user's system permissions. Review this source before installing it. See [SECURITY.md](SECURITY.md) for the threat model and reporting process.
+
+## Architecture
+
+```text
+Pi session
+   │
+   ├── kujo_tools ── discovers and enables capabilities
+   ├── read-only tools ── check / Scout / Scent / PatchBrief / RAG
+   ├── approved tools ── ShipCheck / MCP / Dispatch / Agents SDK
+   ├── local receipts ── RunLedger
+   └── opt-in network edges ── Watchdog / Leash
+          │
+          └── Kujo CLI, MCP, and workflow contracts
+```
 
 ## Development
 
 ```bash
+npm install
+npm run typecheck
 npm test
 ```
 
-The extension is TypeScript loaded by Pi at runtime. Pi's extension dependencies are peer dependencies and are not bundled.
+The test suite is offline and validates the package manifest, TypeScript extension contract, path containment, output bounds, and safety-oriented integration metadata.
 
-## Security
+## Scope boundary
 
-Pi extensions run with the user's system permissions. Review this source before installing it. Kujo Pi passes user-provided paths as argument-array values and does not construct shell command strings, but the Kujo commands themselves may execute project code when explicitly invoked.
+Kujo Pi is a client integration layer. It does not duplicate Kujo runtime logic, provider adapters, workflow engines, MCP authorization, mobile approval policy, or RAG storage. Those remain in the canonical Kujo repositories:
+
+- [Kujo Skills](https://github.com/kujolang/kujo-skills)
+- [Agents SDK](https://github.com/kujolang/agents-sdk)
+- [Dispatch](https://github.com/kujolang/dispatch)
+- [MCP](https://github.com/kujolang/mcp)
+- [RAG](https://github.com/kujolang/rag)
+- [RunLedger](https://github.com/kujolang/runledger)
+- [Watchdog](https://github.com/kujolang/watchdog)
+- [Leash](https://github.com/kujolang/leash)
 
 ## License
 
