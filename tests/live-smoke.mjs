@@ -61,7 +61,7 @@ if (ecosystemRoot) {
     ["changebucket", targetRepo, join(ecosystemRoot, "changebucket/changebucket.kujo"), ["--", "--help"]],
     ["shipcheck", targetRepo, join(ecosystemRoot, "shipcheck/shipcheck.kujo"), ["scan", "--format", "json"]],
     ["mcp", targetRepo, join(ecosystemRoot, "mcp/mcp.kujo"), ["--interpreter", "make", targetRepo, "--profile-only"]],
-    ["dispatch", join(ecosystemRoot, "dispatch"), join(ecosystemRoot, "dispatch/dispatch.kujo"), ["demo", "Kujo Pi live contract", "--yes", "--non-interactive", "--output-root", outputRoot]],
+    ["dispatch", join(ecosystemRoot, "dispatch"), join(ecosystemRoot, "dispatch/dispatch.kujo"), ["demo", "Kujo Pi live contract", "--workflow-file", join(ecosystemRoot, "dispatch/examples/workflows/routed-review.json"), "--yes", "--non-interactive", "--output-root", outputRoot]],
     ["agents", join(ecosystemRoot, "agents-sdk"), join(ecosystemRoot, "agents-sdk/examples/examples_smoke_runner.kujo"), ["--interpreter"]],
     ["rag", join(ecosystemRoot, "rag"), join(ecosystemRoot, "rag/main.kujo"), ["--interpreter", "query", "--question", "What is Kujo Pi?"]],
     ["runledger", targetRepo, join(ecosystemRoot, "runledger/runledger.kujo"), ["--", "--help"]],
@@ -69,7 +69,7 @@ if (ecosystemRoot) {
   const results = [];
   for (const [name, cwd, entry, args] of commands) {
     try {
-      const result = await runBounded(binary, ["run", entry, ...args], { cwd, env: { ...process.env, DISPATCH_OFFLINE_FIXTURE: "true", DISPATCH_ALLOW_ANY_OUTPUT_ROOT: "true" } });
+      const result = await runBounded(binary, ["run", entry, ...args], { cwd, env: { ...process.env, DISPATCH_OFFLINE_FIXTURE: "true", DISPATCH_ALLOW_ANY_OUTPUT_ROOT: "true", DISPATCH_ALLOW_ANY_CONFIG_PATH: "true" } });
       results.push({ name, ok: true, code: result.code });
     } catch (error) {
       results.push({ name, ok: false, message: error.message });

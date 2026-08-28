@@ -17,7 +17,7 @@ This is the next-session work list for making `@kujolang/kujo-pi` a shining exam
 | 11 | Multi-workspace and monorepo targeting | Functionality | 3–5 days | High | Tools can target a validated workspace root while retaining containment and project-trust checks. |
 | 12 | npm publication and release automation | Distribution | 1–2 days | Low | Versioned npm install works, GitHub release notes are generated, and package contents are reproducible. |
 
-Current implementation status: ranks 1–11 have local implementations, including safe subprocess streaming, while rank 12 has release automation but npm publication remains pending registry confirmation. Live service execution still requires external environments or organization credentials.
+Current implementation status: ranks 1–11 have local implementations, including safe subprocess streaming. The opt-in local integration matrix now passes all 10 deterministic ecosystem adapters; Watchdog and Leash health checks remain available when service URLs are supplied. Rank 12 has release automation but npm publication remains pending an interactive registry one-time password.
 
 ## Review findings addressed in the current pass
 
@@ -35,6 +35,7 @@ Current implementation status: ranks 1–11 have local implementations, includin
 - Optional redacted session receipts are available through `KUJO_PI_RECEIPTS=1`.
 - Local and remote service profiles document HTTPS, audience, token, and loopback requirements.
 - `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI, configured service health endpoints, and (when `KUJO_PI_ECOSYSTEM_ROOT` is set) the local deterministic adapter matrix.
+- The local integration matrix uses a temporary git fixture and Dispatch's reviewed routed workflow, so it exercises canonical entrypoints without mutating ecosystem repositories or requiring provider credentials.
 - Release automation publishes provenance-bearing npm releases from immutable version tags when organization credentials are present.
 - npm publication was attempted for `@kujolang/kujo-pi@0.3.0`; npm authentication succeeded but publication requires an interactive one-time password, so no package was published.
 - The fixture matrix executes every local CLI adapter through success, missing-dependency, timeout, approval, and path-containment cases.
