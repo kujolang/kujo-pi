@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import kujoPi from "../extensions/kujo.ts";
@@ -47,6 +47,15 @@ const timeout = await byName("kujo_status").execute("3", {}, undefined, undefine
 assert.equal(timeout.details.status, "timeout");
 const rejectedPath = await byName("kujo_check").execute("4", { file: "../outside" }, undefined, undefined, ctx);
 assert.equal(rejectedPath.details.status, "configuration_error");
+const untrustedCtx = { ...ctx, isProjectTrusted: () => false };
+const untrusted = await byName("kujo_check").execute("untrusted", { file: "source.kujo" }, undefined, undefined, untrustedCtx);
+assert.equal(untrusted.details.status, "project_untrusted");
+const untrustedStatus = await byName("kujo_status").execute("untrusted-status", {}, undefined, undefined, untrustedCtx);
+assert.equal(untrustedStatus.details.status, "project_untrusted");
+const untrustedDoctor = await byName("kujo_doctor").execute("untrusted-doctor", {}, undefined, undefined, untrustedCtx);
+assert.equal(untrustedDoctor.details.status, "project_untrusted");
+const untrustedEnable = await byName("kujo_tools").execute("enable", { enable: ["kujo_scout"] }, undefined, undefined, untrustedCtx);
+assert.equal(untrustedEnable.details.status, "project_untrusted");
 const approval = await byName("kujo_shipcheck").execute("5", {}, undefined, undefined, ctx);
 assert.equal(approval.details.status, "approval_required");
 const previousKujoBin = process.env.KUJO_BIN;
@@ -58,7 +67,17 @@ assert.ok(updates.length >= 2, "streaming execution should publish start and com
 if (previousKujoBin === undefined) delete process.env.KUJO_BIN;
 else process.env.KUJO_BIN = previousKujoBin;
 execMode = "success";
-const approvedCtx = { ...ctx, hasUI: true };
+const missingEntrypoint = await byName("kujo_scout").execute("missing-entry", {}, undefined, undefined, ctx);
+assert.equal(missingEntrypoint.details.status, "configuration_error");
+const trustedEntrypoint = join(ctx.cwd, "trusted-integration.kujo");
+writeFileSync(trustedEntrypoint, "# trusted integration fixture\n");
+for (const variable of ["KUJO_SCOUT_ENTRY", "KUJO_SCENT_ENTRY", "KUJO_MCP_ENTRY", "KUJO_AGENTS_SMOKE_ENTRY", "KUJO_RAG_ENTRY", "KUJO_DISPATCH_ENTRY"]) {
+  process.env[variable] = trustedEntrypoint;
+}
+const approvedCtx = { ...ctx, hasUI: true, ui: { confirm: async () => true } };
+const deniedCtx = { ...ctx, hasUI: true, ui: { confirm: async () => false } };
+const denied = await byName("kujo_shipcheck").execute("denied", { confirm: true }, undefined, undefined, deniedCtx);
+assert.equal(denied.details.status, "approval_required", "interactive approval cannot be bypassed with confirm=true");
 const fixtures: Array<[string, Record<string, unknown>]> = [
   ["kujo_scout", {}],
   ["kujo_scent", { task: "fixture" }],
@@ -75,8 +94,8 @@ for (const [name, params] of fixtures) {
   const result = await byName(name).execute("fixture", params, undefined, undefined, approvedCtx);
   assert.equal(result.details.status, "success", `${name} fixture failed`);
 }
-const dispatchCall = execCalls.find(({ args }) => args.includes("dispatch.kujo"));
-assert.deepEqual(dispatchCall?.args.slice(0, 3), ["run", "dispatch.kujo", "demo"], "Dispatch must use its command surface, not the interpreter flag");
+const dispatchCall = execCalls.find(({ args }) => args[0] === "run" && args[2] === "demo");
+assert.deepEqual(dispatchCall?.args.slice(0, 3), ["run", realpathSync(trustedEntrypoint), "demo"], "Dispatch must use its configured command surface, not a workspace fallback");
 const previousFetch = globalThis.fetch;
 let watchdogFetchOptions: RequestInit | undefined;
 process.env.KUJO_WATCHDOG_URL = "http://127.0.0.1:4318";
@@ -89,6 +108,9 @@ assert.equal(watchdog.details.status, "success");
 assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
 globalThis.fetch = previousFetch;
 delete process.env.KUJO_WATCHDOG_URL;
+for (const variable of ["KUJO_SCOUT_ENTRY", "KUJO_SCENT_ENTRY", "KUJO_MCP_ENTRY", "KUJO_AGENTS_SMOKE_ENTRY", "KUJO_RAG_ENTRY", "KUJO_DISPATCH_ENTRY"]) {
+  delete process.env[variable];
+}
 console.log("extension contract validation passed");
 }
 

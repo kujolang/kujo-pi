@@ -11,7 +11,7 @@ test -f skills/kujo-way/SKILL.md
 test -f skills/kujo-review/SKILL.md
 test -f skills/kujo-release/SKILL.md
 test -f prompts/kujo-finish.md
-grep -Eq 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' extensions/kujo.ts
+grep -Eq 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' src/extension.ts
 grep -Eq 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs
 node tests/core-contract.mjs
 npm run test:extension

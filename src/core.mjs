@@ -1,5 +1,5 @@
 // @ts-check
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export const OPTIONAL_TOOLS = [
@@ -33,6 +33,15 @@ export function workspacePath(workspace, candidate = ".") {
   return target;
 }
 
+/** @param {string|undefined} value @param {string} variable */
+export function configuredEntrypoint(value, variable) {
+  if (!value) throw new Error(`Set ${variable} to the absolute path of the trusted Kujo entrypoint`);
+  if (!isAbsolute(value)) throw new Error(`${variable} must be an absolute path`);
+  const entrypoint = realpathSync(value);
+  if (!statSync(entrypoint).isFile()) throw new Error(`${variable} must point to a file`);
+  return entrypoint;
+}
+
 /** @param {string} target */
 function existingAncestor(target) {
   let current = target;
@@ -46,14 +55,18 @@ function existingAncestor(target) {
 
 /** @param {string} value @param {number} [maxChars] */
 export function truncateOutput(value, maxChars = 12_000) {
+  if (!Number.isSafeInteger(maxChars) || maxChars < 1) throw new Error("maxChars must be a positive integer");
   if (value.length <= maxChars) return value;
   return `${value.slice(0, maxChars)}\n\n[output truncated at ${maxChars} characters]`;
 }
 
-/** @param {{stdout: string, stderr: string, code: number|null, killed: boolean}} result @param {string} label */
+/** @param {{stdout: string, stderr: string, code: number|null, killed: boolean, timedOut?: boolean, cancelled?: boolean}} result @param {string} label */
 export function commandResult(result, label) {
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
-  const status = result.killed ? "timeout_or_cancelled" : result.code === 0 ? "success" : "command_failed";
+  const status = result.cancelled ? "cancelled"
+    : result.timedOut ? "timeout"
+      : result.killed ? "timeout_or_cancelled"
+        : result.code === 0 ? "success" : "command_failed";
   return {
     ok: result.code === 0 && !result.killed,
     status,
@@ -145,25 +158,57 @@ export async function boundedResponse(response, maxChars = 12_000) {
   } finally {
     reader.releaseLock();
   }
-  return truncated ? truncateOutput(`${output}x`, maxChars) : output;
+  return truncated ? `${output.slice(0, maxChars)}\n\n[output truncated at ${maxChars} characters]` : output;
 }
 
-/** @param {(signal: AbortSignal) => Promise<Response>} request @param {AbortSignal|undefined} signal @param {number} [attempts] */
-export async function fetchWithRetry(request, signal, attempts = 3) {
+/** @param {AbortSignal|undefined} signal @param {number} [timeoutMs] */
+export function requestSignal(signal, timeoutMs = 30_000) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error("timeoutMs must be a positive integer");
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+/** @param {number} milliseconds @param {AbortSignal|undefined} signal */
+function retryDelay(milliseconds, signal) {
+  return new Promise((resolveDelay, rejectDelay) => {
+    if (signal?.aborted) {
+      rejectDelay(signal.reason);
+      return;
+    }
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolveDelay(undefined);
+    };
+    const abort = () => {
+      clearTimeout(timer);
+      rejectDelay(signal?.reason);
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+/** @param {(signal: AbortSignal) => Promise<Response>} request @param {AbortSignal|undefined} signal @param {number} [attempts] @param {number} [timeoutMs] */
+export async function fetchWithRetry(request, signal, attempts = 3, timeoutMs = 30_000) {
+  if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 10) {
+    throw new Error("attempts must be an integer between 1 and 10");
+  }
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await request(signal || AbortSignal.timeout(30_000));
+      const response = await request(requestSignal(signal, timeoutMs));
       if (response.status < 500 && response.status !== 408 && response.status !== 429) return response;
+      try {
+        await response.body?.cancel();
+      } catch {
+        // The retry still proceeds if the remote body is already closed.
+      }
       last = new Error(`remote service returned ${response.status}`);
     } catch (error) {
       last = error;
       if (signal?.aborted) throw error;
     }
-    if (attempt + 1 < attempts) await new Promise((resolveDelay, rejectDelay) => {
-      const timer = setTimeout(resolveDelay, 100 * (attempt + 1));
-      signal?.addEventListener("abort", () => { clearTimeout(timer); rejectDelay(signal.reason); }, { once: true });
-    });
+    if (attempt + 1 < attempts) await retryDelay(100 * (attempt + 1), signal);
   }
   throw last;
 }
@@ -171,6 +216,7 @@ export async function fetchWithRetry(request, signal, attempts = 3) {
 /** @param {unknown} value @param {number} [maxChars] */
 export function boundedJson(value, maxChars = 64_000) {
   const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error("JSON payload must be serializable");
   if (serialized.length > maxChars) throw new Error(`JSON payload exceeds ${maxChars} characters`);
   return serialized;
 }
