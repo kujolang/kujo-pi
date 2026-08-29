@@ -94,7 +94,7 @@ jobs:
       - name: Verify downloaded artifact checksum
         working-directory: release
         run: sha256sum --check kujo-pi.tgz.sha256
-      - run: npm publish release/kujo-pi.tgz --provenance --access public
+      - run: npm publish ./release/kujo-pi.tgz --provenance --access public
 
   publish-github:
     needs: publish-npm

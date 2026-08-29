@@ -29,7 +29,8 @@ assert.match(release, /expected_tag=.*package\.json/);
 assert.match(release, /merge-base --is-ancestor/);
 assert.match(release, /publish-npm:[\s\S]*id-token: write/);
 assert.match(release, /publish-github:[\s\S]*contents: write/);
-assert.match(release, /npm publish release\/kujo-pi\.tgz --provenance --access public/);
+assert.match(release, /npm publish \.\/release\/kujo-pi\.tgz --provenance --access public/);
+assert.doesNotMatch(release, /npm publish release\/kujo-pi\.tgz/);
 assert.equal((release.match(/working-directory: release\s+run: sha256sum --check kujo-pi\.tgz\.sha256/g) ?? []).length, 2,
   "both publication jobs must verify checksums from the downloaded artifact directory");
 assert.doesNotMatch(release, /sha256sum --check release\/kujo-pi\.tgz\.sha256/);
