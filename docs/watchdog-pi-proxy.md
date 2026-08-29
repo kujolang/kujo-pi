@@ -96,10 +96,11 @@ explicitly chosen a content-capturing policy.
 
 Watchdog proxying automatically captures Pi's model HTTP traffic. It does not
 automatically receive every Pi tool lifecycle event or local shell command.
-Those are separate producer-neutral telemetry events and require an explicit
-Pi-to-Watchdog telemetry bridge in a future integration. Kujo Pi's existing
-`kujo_watchdog` tool only reads configured Watchdog endpoints; it does not turn
-on background collection.
+Those are separate producer-neutral telemetry events. Enable the implemented
+[Pi lifecycle telemetry bridge](watchdog-telemetry-bridge.md) when you want
+agent, turn, tool, shell-request, model-selection, and session correlation.
+Kujo Pi's `kujo_watchdog` tool remains a read-only API client; it does not turn
+on background collection by itself.
 
 ## Troubleshooting
 

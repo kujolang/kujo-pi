@@ -6,6 +6,7 @@ const files = result[0].files.map(({ path }) => path);
 assert.ok(files.includes("extensions/kujo.ts"));
 assert.ok(files.includes("src/core.mjs"));
 assert.ok(files.includes("src/extension.ts"));
+assert.ok(files.includes("src/telemetry.mjs"));
 assert.ok(files.includes("docs/enterprise-roadmap.md"));
 assert.ok(files.includes("docs/production-readiness-next.md"));
 for (const forbidden of ["tests/", ".github/", ".loop-engineering/", "node_modules/"]) {

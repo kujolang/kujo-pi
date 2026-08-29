@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 for (const [name, range] of Object.entries(packageJson.peerDependencies)) {
   assert.notEqual(range, "*", `${name} must declare a tested compatibility range`);
 }
 
-assert.equal(existsSync(".loop-engineering"), false, "generated loop-engineering state must not be committed");
+let loopEngineeringTracked = true;
+try { execFileSync("git", ["ls-files", "--error-unmatch", ".loop-engineering"], { stdio: "ignore" }); }
+catch { loopEngineeringTracked = false; }
+assert.equal(loopEngineeringTracked, false, "generated loop-engineering state must not be committed");
 const entrypoint = readFileSync("extensions/kujo.ts", "utf8");
 assert.match(entrypoint, /export \{ default \} from "\.\.\/src\/extension\.js"/);
 assert.ok(entrypoint.split("\n").length <= 4, "the public extension entrypoint must stay a thin src/ bridge");

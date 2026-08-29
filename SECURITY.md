@@ -13,6 +13,8 @@ Kujo Pi is a Pi extension. Installing it gives code in this repository the same 
 - Command output is bounded before it is returned to the model.
 - Network attempts have bounded timeouts, reject redirects, and keep request paths on the configured origin.
 - Watchdog and Leash are disabled until their URLs are configured. Leash tokens are read from the environment and are never returned in tool output.
+- Watchdog lifecycle telemetry is separately disabled until `KUJO_WATCHDOG_TELEMETRY=metadata` is set in a trusted project. Its durable spool stores allowlisted metadata only, never prompts, tool arguments/results, shell text/output, file paths/content, or credentials.
+- Dynamic correlation headers are restricted to the exact Pi provider ID configured by `KUJO_WATCHDOG_PROXY_PROVIDER`, preventing direct providers from receiving local trace metadata.
 - Release workflows bind tags to package versions, require release commits to descend from `main`, pin actions to commit SHAs, and separate test, npm, and GitHub publication permissions.
 
 ## Reporting

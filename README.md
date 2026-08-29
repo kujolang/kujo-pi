@@ -11,6 +11,8 @@ New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
 
 To route Pi model requests through the local Watchdog observability proxy, see
 [Route Pi model traffic through Watchdog](docs/watchdog-pi-proxy.md).
+To add opt-in agent, turn, tool, shell-request, and session telemetry, see
+[Send Pi lifecycle telemetry to Watchdog](docs/watchdog-telemetry-bridge.md).
 
 Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: repository intelligence, scoped context, deterministic checks, workflow orchestration, approvals, receipts, telemetry, retrieval, and guarded MCP generation.
 
@@ -111,6 +113,11 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
 | `KUJO_WATCHDOG_TOKEN` / `KUJO_WATCHDOG_AUDIENCE` | Optional Watchdog bearer token and audience header |
+| `KUJO_WATCHDOG_TELEMETRY` | Set to `metadata` to enable the trusted-project lifecycle bridge |
+| `KUJO_WATCHDOG_PROXY_PROVIDER` | Pi provider ID eligible for Watchdog correlation headers; default `kujo-watchdog` |
+| `KUJO_PI_TELEMETRY_SPOOL_DIR` | Optional durable telemetry spool root |
+| `KUJO_PI_TELEMETRY_SPOOL_MAX_BYTES` / `KUJO_PI_TELEMETRY_SPOOL_MAX_FILES` | Bounded spool limits |
+| `KUJO_PI_TELEMETRY_TIMEOUT_MS` | Per-delivery timeout; default `2000` |
 | `KUJO_LEASH_URL` | Optional Leash daemon base URL |
 | `KUJO_LEASH_TOKEN` | Leash bearer token; never logged |
 | `KUJO_LEASH_AUDIENCE` | Optional Leash audience header |
@@ -142,6 +149,8 @@ Kujo Pi canonicalizes configured entrypoints and refuses missing, relative, or n
 - Tokens and secrets are taken from environment variables and are never included in tool output.
 - Receipts are disabled by default; when enabled, they record only operation, workspace, status, exit code, duration, and timestamp.
 - Network integrations are disabled unless their URL is explicitly configured; Leash also requires a token, while Watchdog credentials are optional.
+- Lifecycle telemetry additionally requires `KUJO_WATCHDOG_TELEMETRY=metadata` and a trusted project. Its local spool contains only allowlisted metadata, uses restrictive file modes, and never stores service credentials.
+- Watchdog correlation headers are added only when the active Pi provider exactly matches `KUJO_WATCHDOG_PROXY_PROVIDER`; direct providers never receive them.
 - Configured HTTP integrations are restricted to the configured origin; user-supplied paths cannot redirect requests to another host.
 - Every network attempt has its own timeout, including calls that also carry a caller cancellation signal.
 - Existing symlink targets are resolved before a workspace path is accepted, preventing repository-local links from escaping the workspace.
@@ -159,7 +168,8 @@ Pi session
    ├── approved tools ── ShipCheck / MCP / Dispatch / Agents SDK
    ├── local receipts ── RunLedger
    └── opt-in network edges ── Watchdog / Leash
-          │
+          ├── Watchdog proxy ── model requests and provider telemetry
+          ├── metadata bridge ── agent / turn / tool / shell lifecycle
           └── Kujo CLI, MCP, and workflow contracts
 ```
 

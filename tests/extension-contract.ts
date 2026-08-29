@@ -33,7 +33,10 @@ for (const name of ["kujo_status", "kujo_scout", "kujo_runledger", "kujo_watchdo
   assert.equal(typeof tools.find((tool) => tool.name === name)?.renderResult, "function", `missing renderer: ${name}`);
 }
 assert.deepEqual(commands, ["kujo"]);
-assert.deepEqual(handlers, ["session_start"]);
+assert.deepEqual(handlers, [
+  "session_start", "before_agent_start", "agent_start", "agent_end", "agent_settled", "turn_start", "turn_end",
+  "tool_execution_start", "tool_execution_end", "user_bash", "model_select", "before_provider_headers", "session_shutdown",
+]);
 
 const byName = (name: string) => tools.find((tool) => tool.name === name) as any;
 const ctx = { cwd: mkdtempSync(join(tmpdir(), "kujo-pi-extension-")), hasUI: false, isProjectTrusted: () => true };

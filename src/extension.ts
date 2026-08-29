@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
 import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, requestSignal, sameOriginUrl, versionFromOutput, workspacePath } from "./core.mjs";
+import { PiTelemetryBridge } from "./telemetry.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
   const publishUpdate = (value: unknown) => { if (typeof onUpdate === "function") onUpdate(toolResult(value)); };
@@ -167,6 +168,7 @@ function commandTarget(command: string, args: string[]) {
 }
 
 export default function kujoPi(pi: ExtensionAPI) {
+  const telemetry = new PiTelemetryBridge();
   const allTools = ["kujo_doctor", "kujo_status", "kujo_check", ...OPTIONAL_TOOLS]
     .filter((name, index, names) => names.indexOf(name) === index);
 
@@ -396,5 +398,25 @@ export default function kujoPi(pi: ExtensionAPI) {
     ctx.ui.setStatus("kujo", "Kujo: opt-in tools available");
     const active = pi.getActiveTools();
     pi.setActiveTools(active.filter((name) => !OPTIONAL_TOOLS.includes(name)));
+    await telemetry.startSession({
+      sessionId: ctx.sessionManager.getSessionId(),
+      workspace: ctx.cwd,
+      provider: ctx.model?.provider,
+      model: ctx.model?.id,
+      trusted: ctx.isProjectTrusted?.() === true,
+    });
   });
+
+  pi.on("before_agent_start", async () => { await telemetry.startRun(); });
+  pi.on("agent_start", () => { telemetry.agentStart(); });
+  pi.on("agent_end", (event: any) => { telemetry.agentEnd(event.willRetry === true); });
+  pi.on("agent_settled", async () => { await telemetry.finishRun("success"); });
+  pi.on("turn_start", (event) => { telemetry.turnStart(event.turnIndex, event.timestamp); });
+  pi.on("turn_end", (event) => { telemetry.turnEnd(event.turnIndex, event.message); });
+  pi.on("tool_execution_start", (event) => { telemetry.toolStart(event.toolCallId, event.toolName); });
+  pi.on("tool_execution_end", (event) => { telemetry.toolEnd(event.toolCallId, event.toolName, event.isError); });
+  pi.on("user_bash", (event) => { telemetry.userBash(event.command, event.excludeFromContext); });
+  pi.on("model_select", (event) => { telemetry.modelSelect(event.model.provider, event.model.id, event.source); });
+  pi.on("before_provider_headers", (event, ctx) => { telemetry.correlateProviderHeaders(event.headers, ctx.model?.provider || ""); });
+  pi.on("session_shutdown", async (event) => { await telemetry.shutdown(event.reason); });
 }

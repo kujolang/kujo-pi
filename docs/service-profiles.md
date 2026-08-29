@@ -6,11 +6,13 @@ Kujo Pi supports local-first service connections without assuming that a develop
 
 ```bash
 export KUJO_WATCHDOG_URL=http://127.0.0.1:4318
+export KUJO_WATCHDOG_TELEMETRY=metadata
+export KUJO_WATCHDOG_PROXY_PROVIDER=kujo-watchdog
 export KUJO_LEASH_URL=http://127.0.0.1:4319
 export KUJO_LEASH_TOKEN='use-a-local-token'
 ```
 
-Local HTTP is accepted only for loopback hosts. The extension constrains request paths to the configured origin, rejects redirects, bounds response bodies, applies a timeout to every attempt, and never sends a request during startup.
+Local HTTP is accepted only for loopback hosts. The extension constrains request paths to the configured origin, rejects redirects, bounds response bodies, applies a timeout to every attempt, and never sends a request during startup unless the explicitly enabled metadata bridge is replaying its local spool after trusted session startup.
 
 ## Remote profile
 
