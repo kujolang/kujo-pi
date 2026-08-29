@@ -5,39 +5,48 @@
 [![built with Kujo](https://img.shields.io/badge/built%20with-Kujo-white.svg)](https://github.com/kujolang/kujo)
 [![CI](https://github.com/kujolang/kujo-pi/actions/workflows/ci.yml/badge.svg)](https://github.com/kujolang/kujo-pi/actions)
 
-An opt-in [Pi](https://pi.dev/) package that gives serious developers a quiet, reviewable bridge into the Kujo ecosystem.
+An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewable bridge into the Kujo ecosystem.
 
 New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
 
 Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: repository intelligence, scoped context, deterministic checks, workflow orchestration, approvals, receipts, telemetry, retrieval, and guarded MCP generation.
 
-This is production-ready as a thin, local-first integration layer—not a universal guarantee that every Kujo service is installed, configured, or compatible with every organization. The `kujo_doctor` tool makes that boundary visible, while approvals and opt-in activation keep the package quiet until a developer asks for more.
+Kujo Pi is designed for production use within a clear boundary: it is a local client integration, not a universal enterprise platform. Enterprise readiness also depends on the Pi host, the installed Kujo tools, service policy, release controls, and organization-specific testing. `kujo_doctor`, project-trust checks, explicit entrypoint configuration, and approval gates make those dependencies visible.
+
+The default test suite is offline. It covers supported Node versions, package contents, documentation links, path and origin containment, bounded I/O, project trust, approval behavior, entrypoint provenance, and release-workflow invariants.
 
 ## Install
 
-Install from npm after the first registry release:
+The package is not published to npm yet. After the first registry release, install the released version:
 
 ```bash
-pi install npm:@kujolang/kujo-pi@0.3.0
+pi install npm:@kujolang/kujo-pi@<version>
 ```
 
-Install directly from GitHub today:
+Install directly from GitHub today. Pin a reviewed full commit for team and CI use:
 
 ```bash
-pi install -l git:github.com/kujolang/kujo-pi@main
+pi install -l git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
-`-l` keeps the package in the project-local `.pi/settings.json`. This is the recommended team-sharing mode. Global installation is also supported:
+`-l` keeps the package in the project-local `.pi/settings.json`. This is the recommended team-sharing mode. Use `@main` only when you intentionally want the latest unreleased code. Global installation is also supported:
 
 ```bash
-pi install git:github.com/kujolang/kujo-pi@main
+pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
-The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
+The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Workflow entrypoints must be configured as absolute paths; Kujo Pi never executes a same-named `.kujo` file merely because it exists in the open repository. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
 
 ## First use
 
-Start Pi in a repository and ask naturally:
+Configure the Kujo workflow you want to use. For example:
+
+```bash
+export KUJO_SCOUT_ENTRY="/absolute/path/to/scout/scout.kujo"
+export KUJO_SCENT_ENTRY="/absolute/path/to/scent/scent.kujo"
+```
+
+Then start Pi in a trusted repository and ask naturally:
 
 ```text
 Use Kujo Scout to understand this repository, then prepare a scoped context pack for the task we discussed.
@@ -55,7 +64,7 @@ Use kujo_tools to see the available integrations.
 Enable kujo_changebucket and review the current changes.
 ```
 
-The package begins with side-effecting and service-backed integrations inactive. Ask Pi to enable a capability for the current session when you need it, or use `/kujo enable kujo_scout`.
+The package begins with optional and service-backed integrations inactive. A project must be trusted in Pi before these tools can be enabled or run. Ask Pi to enable a capability for the current session when you need it, or use `/kujo enable kujo_scout`.
 
 `/kujo init` creates only `.kujo/pi/README.md`, refuses to overwrite it, and is useful for making project-local Kujo artifacts visible to a team.
 
@@ -63,8 +72,8 @@ The package begins with side-effecting and service-backed integrations inactive.
 
 | Capability | Default | Purpose | Side effects |
 |---|---:|---|---|
-| `kujo_tools` | active | Discover and enable integrations | Session-only tool activation |
-| `kujo_doctor` | active | Check local tools, project trust, entrypoints, and network configuration | Read-only version probes |
+| `kujo_tools` | active | Discover and enable integrations | Session-only tool activation; optional activation requires project trust |
+| `kujo_doctor` | active | Check local tools, project trust, entrypoints, and network configuration | Version probes in trusted projects only |
 | `kujo_status` | active | Check Kujo installation | Read-only |
 | `kujo_check` | active | Validate `.kujo` source | Read-only |
 | `kujo_scout` | opt-in | Map repository structure, dependencies, routes, and risks | Writes Scout output when configured |
@@ -87,15 +96,15 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | Variable | Meaning |
 |---|---|
 | `KUJO_BIN` | Kujo runtime executable; default `kujo` |
-| `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout binary or `.kujo` entrypoint |
-| `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent binary or `.kujo` entrypoint |
+| `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout binary, or required absolute `.kujo` entrypoint when no binary is configured |
+| `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent binary, or required absolute `.kujo` entrypoint when no binary is configured |
 | `KUJO_PATCHBRIEF_BIN` | PatchBrief executable; default `patchbrief` |
 | `KUJO_CHANGEBUCKET_BIN` | ChangeBucket executable; default `changebucket` |
 | `KUJO_SHIPCHECK_BIN` | ShipCheck executable; default `shipcheck` |
-| `KUJO_MCP_ENTRY` | MCP `mcp.kujo` path |
-| `KUJO_DISPATCH_ENTRY` | Dispatch `dispatch.kujo` path |
-| `KUJO_AGENTS_SMOKE_ENTRY` | Agents SDK fixture runner path |
-| `KUJO_RAG_ENTRY` | RAG `main.kujo` path |
+| `KUJO_MCP_ENTRY` | Required absolute MCP `mcp.kujo` path |
+| `KUJO_DISPATCH_ENTRY` | Required absolute Dispatch `dispatch.kujo` path |
+| `KUJO_AGENTS_SMOKE_ENTRY` | Required absolute Agents SDK fixture runner path |
+| `KUJO_RAG_ENTRY` | Required absolute RAG `main.kujo` path |
 | `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
 | `KUJO_WATCHDOG_TOKEN` / `KUJO_WATCHDOG_AUDIENCE` | Optional Watchdog bearer token and audience header |
@@ -117,16 +126,21 @@ export KUJO_AGENTS_SMOKE_ENTRY="$HOME/src/agents-sdk/examples/examples_smoke_run
 export KUJO_RAG_ENTRY="$HOME/src/rag/main.kujo"
 ```
 
+Kujo Pi canonicalizes configured entrypoints and refuses missing, relative, or non-file paths. `kujo_doctor` reports `not configured` when an integration still needs setup.
+
 ## Safety model
 
 - Optional integrations are inactive until enabled.
-- Execution, release checks, MCP generation, Dispatch, Agents SDK runs, and Leash delivery require explicit approval.
+- Every subprocess, network call, and project write requires a project that Pi reports as trusted.
+- Release checks, MCP generation, Dispatch, Agents SDK runs, and Leash delivery require explicit approval. Interactive sessions always show the approval UI; `confirm: true` is accepted only in trusted headless sessions.
+- Kujo workflow entrypoints must be absolute, operator-configured files. Repository-local fallback names are not executed.
 - User paths are resolved inside Pi's current workspace and passed as argument-array values, never interpolated into shell strings.
 - Command output is bounded before it is returned to the model.
 - Tokens and secrets are taken from environment variables and are never included in tool output.
 - Receipts are disabled by default; when enabled, they record only operation, workspace, status, exit code, duration, and timestamp.
-- Network integrations are disabled unless their URL and credentials are explicitly configured.
+- Network integrations are disabled unless their URL is explicitly configured; Leash also requires a token, while Watchdog credentials are optional.
 - Configured HTTP integrations are restricted to the configured origin; user-supplied paths cannot redirect requests to another host.
+- Every network attempt has its own timeout, including calls that also carry a caller cancellation signal.
 - Existing symlink targets are resolved before a workspace path is accepted, preventing repository-local links from escaping the workspace.
 - Kujo Pi does not claim to enforce Kujo or Pi permissions; the host, Kujo runtime, and configured external services remain authoritative.
 
@@ -138,7 +152,7 @@ Pi extensions run with the user's system permissions. Review this source before 
 Pi session
    │
    ├── kujo_tools ── discovers and enables capabilities
-   ├── read-only tools ── check / Scout / Scent / PatchBrief / RAG
+   ├── repository tools ── check / Scout / Scent / PatchBrief / RAG
    ├── approved tools ── ShipCheck / MCP / Dispatch / Agents SDK
    ├── local receipts ── RunLedger
    └── opt-in network edges ── Watchdog / Leash
@@ -146,17 +160,21 @@ Pi session
           └── Kujo CLI, MCP, and workflow contracts
 ```
 
+Runtime implementation lives in `src/`. `extensions/kujo.ts` is intentionally a two-line compatibility entrypoint required by Pi's package manifest. Skills, prompts, documentation, tests, and workflow configuration stay in their conventional top-level directories.
+
 ## Development
 
 ```bash
-npm install
+npm ci --ignore-scripts
 npm run typecheck
 npm test
 ```
 
-The test suite is offline and validates the package manifest, TypeScript extension contract, path containment, output bounds, and safety-oriented integration metadata.
+The test suite is offline and validates the package manifest, TypeScript extension contract, source layout, documentation links, path containment, trusted entrypoint selection, approval and project-trust gates, output bounds, network timeouts, and release workflow.
 
 The prioritized hardening and expansion backlog is documented in [docs/enterprise-roadmap.md](docs/enterprise-roadmap.md).
+
+The next production-readiness work list is in [docs/production-readiness-next.md](docs/production-readiness-next.md).
 
 Recommended local and remote service profiles are documented in [docs/service-profiles.md](docs/service-profiles.md). The Kujo CLI and service checks are available with `KUJO_PI_LIVE=1 npm run test:live`; add `KUJO_PI_ECOSYSTEM_ROOT=/path/to/kujo-repos` to exercise the full local adapter matrix. Live checks never run in the default offline test suite.
 

@@ -10,7 +10,7 @@ export KUJO_LEASH_URL=http://127.0.0.1:4319
 export KUJO_LEASH_TOKEN='use-a-local-token'
 ```
 
-Local HTTP is accepted only for loopback hosts. The extension constrains request paths to the configured origin, bounds response bodies, and never sends a request during startup.
+Local HTTP is accepted only for loopback hosts. The extension constrains request paths to the configured origin, rejects redirects, bounds response bodies, applies a timeout to every attempt, and never sends a request during startup.
 
 ## Remote profile
 
@@ -23,7 +23,7 @@ export KUJO_LEASH_TOKEN='use-a-secret-manager-value'
 export KUJO_LEASH_AUDIENCE=kujo-leash
 ```
 
-Remote HTTP is rejected; remote services must use HTTPS. Tokens are sent only as bearer headers and are never included in tool results, receipts, or diagnostics. Store them in the host secret manager or process environment, not in `.pi/settings.json`, project files, or shell history.
+Remote HTTP is rejected; remote services must use HTTPS. Tokens are sent only as bearer headers and are never included in tool results, receipts, or diagnostics. Store them in the host secret manager or process environment, not in `.pi/settings.json`, project files, or shell history. Pi must report the open project as trusted before a service tool runs.
 
 ## Operational boundary
 

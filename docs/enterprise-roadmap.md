@@ -2,6 +2,8 @@
 
 This is the next-session work list for making `@kujolang/kujo-pi` a shining example of a Pi package and a frictionless gateway into Kujo. Items are ranked by user value, risk reduction, and how much they improve the first five minutes after installation.
 
+This document records the previous review cycle. See the [current production-readiness work list](production-readiness-next.md) for the next cycle.
+
 | Rank | Work item | Type | Estimate | Build complexity | Value / acceptance criteria |
 |---:|---|---|---:|---:|---|
 | 1 | Pi-native result renderers for Scout, PatchBrief, ChangeBucket, ShipCheck, and RunLedger | Extension UI | 3–5 days | High | Reports become scannable in the TUI; raw JSON remains available for automation. |
@@ -17,14 +19,17 @@ This is the next-session work list for making `@kujolang/kujo-pi` a shining exam
 | 11 | Multi-workspace and monorepo targeting | Functionality | 3–5 days | High | Tools can target a validated workspace root while retaining containment and project-trust checks. |
 | 12 | npm publication and release automation | Distribution | 1–2 days | Low | Versioned npm install works, GitHub release notes are generated, and package contents are reproducible. |
 
-Current implementation status: ranks 1–11 have local implementations, including safe subprocess streaming. The opt-in local integration matrix now passes all 10 deterministic ecosystem adapters; Watchdog and Leash health checks remain available when service URLs are supplied. Rank 12 has release automation but npm publication remains pending an interactive registry one-time password.
+Current implementation status: ranks 1–11 have local implementations, including safe subprocess streaming. The opt-in local integration matrix covers 10 ecosystem adapters; Watchdog and Leash health checks remain available when service URLs are supplied. Rank 12 now has a version-bound, SHA-pinned, least-privilege release workflow, but the npm package and external trusted-publisher policy are not yet live.
 
 ## Review findings addressed in the current pass
 
 - Side-effecting tools are opt-in rather than merely approval-gated.
+- Repository-scoped tools now fail closed when Pi does not report the project as trusted.
+- Workflow entrypoints require canonical absolute files; repository-local fallback names are rejected.
 - Missing binaries now return structured tool results instead of uncaught failures.
 - Doctor probes run concurrently and remain bounded by per-command timeouts.
 - HTTP response bodies are bounded and configured-origin constrained.
+- HTTP attempts retain explicit timeouts when caller cancellation is also present.
 - Workspace checks reject lexical escapes and symlink escapes.
 - `/kujo list`, `/kujo enable`, and `/kujo disable` provide a usable manual control surface.
 - `/kujo init` creates a minimal project-local marker without overwriting existing files.
@@ -37,7 +42,8 @@ Current implementation status: ranks 1–11 have local implementations, includin
 - `npm run test:live` provides an opt-in smoke harness for an installed Kujo CLI, configured service health endpoints, and (when `KUJO_PI_ECOSYSTEM_ROOT` is set) the local deterministic adapter matrix.
 - The local integration matrix uses a temporary git fixture and Dispatch's reviewed routed workflow, so it exercises canonical entrypoints without mutating ecosystem repositories or requiring provider credentials.
 - Release automation is configured for npm trusted publishing through GitHub Actions OIDC; once the package's npm trusted-publisher relationship is configured, immutable version tags publish with automatic provenance and no long-lived npm token.
-- npm publication was attempted for `@kujolang/kujo-pi@0.3.0`; npm authentication succeeded but publication requires an interactive one-time password, so no package was published.
+- Release verification binds the tag to `package.json`, requires ancestry from `main`, publishes the tested tarball, pins every Action to a commit SHA, and isolates npm OIDC from GitHub contents-write permission.
+- npm registry lookup still returns no published `@kujolang/kujo-pi` package; publication remains a separate user-authorized release step.
 - The fixture matrix executes every local CLI adapter through success, missing-dependency, timeout, approval, and path-containment cases.
 
 ## Explicit non-goals

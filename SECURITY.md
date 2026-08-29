@@ -6,10 +6,14 @@ Kujo Pi is a Pi extension. Installing it gives code in this repository the same 
 
 - Startup is local-only and does not install Kujo, start daemons, or make network requests.
 - Optional tools are inactive until enabled for a session.
-- Tools that execute workflows or generate artifacts ask for explicit approval unless the caller supplies an explicit confirmation flag.
+- Every subprocess, network call, and project write refuses to run unless Pi reports the project as trusted.
+- Interactive tools that execute privileged workflows or generate artifacts always use Pi's approval UI. Trusted headless callers may supply an explicit confirmation flag.
+- Kujo workflow entrypoints must be configured as absolute existing files. The extension does not execute relative fallback entrypoints from the open repository.
 - Workspace paths are contained before being passed to Kujo commands.
 - Command output is bounded before it is returned to the model.
+- Network attempts have bounded timeouts, reject redirects, and keep request paths on the configured origin.
 - Watchdog and Leash are disabled until their URLs are configured. Leash tokens are read from the environment and are never returned in tool output.
+- Release workflows bind tags to package versions, require release commits to descend from `main`, pin actions to commit SHAs, and separate test, npm, and GitHub publication permissions.
 
 ## Reporting
 

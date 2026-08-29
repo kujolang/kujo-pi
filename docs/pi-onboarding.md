@@ -6,7 +6,7 @@ It does not replace Pi, install the Kujo runtime, start background daemons, or c
 
 ## Is it usable today?
 
-Yes. The GitHub installation works today. npm publication is a separate distribution step and is not required for local or team use.
+Yes, within its documented client-integration boundary. The GitHub installation works today. npm publication is a separate distribution step and is not required for local or team use.
 
 Kujo Pi is a thin integration layer. It is not a guarantee that every Kujo component is installed, configured, or compatible with every organization. Use `kujo_doctor` to inspect the current environment.
 
@@ -31,16 +31,16 @@ Kujo Pi is a thin integration layer. It is not a guarantee that every Kujo compo
 | `kujo_leash_approval` | Send an explicit approval event to Leash | Opt-in; approval and token required |
 | `kujo_rag_query` | Query a local Kujo RAG index with citations | Opt-in |
 
-Optional tools stay inactive until you enable them. This keeps normal Pi sessions quiet and prevents an integration from creating side effects merely because it is installed.
+Optional tools stay inactive until you enable them. Pi must also report the open project as trusted before Kujo Pi enables or runs repository-scoped tools. This keeps normal sessions quiet and prevents installation alone from creating side effects.
 
 ## Install
 
-### Recommended today: project-local Git install
+### Recommended today: pinned project-local Git install
 
 Run this from the repository where you use Pi:
 
 ```bash
-pi install -l git:github.com/kujolang/kujo-pi@main
+pi install -l git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
 The `-l` flag keeps the package in the project's `.pi/settings.json`, which makes the installation visible and repeatable for a team.
@@ -48,7 +48,7 @@ The `-l` flag keeps the package in the project's `.pi/settings.json`, which make
 You can install globally instead:
 
 ```bash
-pi install git:github.com/kujolang/kujo-pi@main
+pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
 ### After npm publication
@@ -56,10 +56,10 @@ pi install git:github.com/kujolang/kujo-pi@main
 The versioned npm install will be:
 
 ```bash
-pi install npm:@kujolang/kujo-pi@0.3.0
+pi install npm:@kujolang/kujo-pi@<version>
 ```
 
-The package currently requires Node.js 22 or newer when running its JavaScript extension and development checks.
+The package currently requires Node.js 22.19 or newer when running its JavaScript extension and development checks.
 
 ## Prerequisites
 
@@ -75,7 +75,7 @@ If the binary is elsewhere, configure it for the Pi process:
 export KUJO_BIN="$HOME/src/kujo/target/release/kujo"
 ```
 
-Kujo Pi can also call ecosystem entrypoints directly through environment variables. A typical local checkout looks like this:
+Kujo Pi can also call ecosystem entrypoints directly through environment variables. Entrypoints must be absolute existing file paths; the extension does not execute repository-local fallback names. A typical local checkout looks like this:
 
 ```bash
 export KUJO_SCOUT_ENTRY="$HOME/src/scout/scout.kujo"
@@ -91,19 +91,20 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
 ## First five minutes
 
 1. Start Pi in the repository you want to work on.
-2. Ask Pi to run Doctor:
+2. Confirm that Pi marks the project as trusted.
+3. Ask Pi to run Doctor:
 
    ```text
    Use kujo_doctor to check my Kujo Pi setup.
    ```
 
-3. Inspect the available capabilities:
+4. Inspect the available capabilities:
 
    ```text
    Use kujo_tools to list the available Kujo integrations.
    ```
 
-4. Enable only what you need:
+5. Enable only what you need:
 
    ```text
    Enable kujo_scout and kujo_scent for this session.
@@ -115,7 +116,7 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
    /kujo enable kujo_scout kujo_scent
    ```
 
-5. Ask Pi to work with the enabled tools:
+6. Ask Pi to work with the enabled tools:
 
    ```text
    Use Kujo Scout to understand this repository, then use Kujo Scent to prepare context for fixing the authentication bug.
@@ -212,10 +213,10 @@ Set these variables in the environment inherited by Pi. Do not put secrets in `.
 | `KUJO_PATCHBRIEF_BIN` | PatchBrief executable; default `patchbrief` |
 | `KUJO_CHANGEBUCKET_BIN` | ChangeBucket executable; default `changebucket` |
 | `KUJO_SHIPCHECK_BIN` | ShipCheck executable; default `shipcheck` |
-| `KUJO_MCP_ENTRY` | MCP entrypoint; default `mcp.kujo` |
-| `KUJO_DISPATCH_ENTRY` | Dispatch entrypoint; default `dispatch.kujo` |
-| `KUJO_AGENTS_SMOKE_ENTRY` | Agents SDK fixture runner |
-| `KUJO_RAG_ENTRY` | RAG entrypoint; default `main.kujo` |
+| `KUJO_MCP_ENTRY` | Required absolute MCP entrypoint |
+| `KUJO_DISPATCH_ENTRY` | Required absolute Dispatch entrypoint |
+| `KUJO_AGENTS_SMOKE_ENTRY` | Required absolute Agents SDK fixture runner |
+| `KUJO_RAG_ENTRY` | Required absolute RAG entrypoint |
 | `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
 | `KUJO_PI_MIN_KUJO_VERSION` | Optional minimum Kujo version checked by Doctor |
 | `KUJO_PI_RECEIPTS` | Set to `1` to record redacted session receipts |
@@ -246,10 +247,13 @@ These integrations are disabled until their URLs are configured. The extension r
 ## Safety and trust model
 
 - Read-only tools can inspect the current workspace, but they do not grant Pi or Kujo permissions.
-- Side-effecting tools are opt-in. ShipCheck, MCP generation, Dispatch, Agents SDK runs, and Leash delivery also require approval.
+- Every subprocess, network call, and project write requires a project Pi reports as trusted.
+- Side-effecting tools are opt-in. ShipCheck, MCP generation, Dispatch, Agents SDK runs, and Leash delivery also require approval. Interactive sessions always show Pi's approval UI.
+- Workflow entrypoints are explicit absolute files; missing or relative entrypoint configuration fails closed.
 - Workspace paths are checked for lexical escapes and existing symlink escapes before they are passed to a command.
 - Commands use argument arrays with shell execution disabled.
 - Subprocess output and service responses are bounded before they reach the model.
+- Network attempts retain a per-attempt timeout even when the caller provides a cancellation signal.
 - Receipts are off by default and contain operation metadata, not credentials or raw output.
 - Pi extensions run with the user's system permissions. Review the source and your project trust settings before installing any extension.
 
