@@ -12,7 +12,7 @@ That does not make any client integration universally enterprise-ready. The Pi h
 | 2 | Activate protected GitHub environments and tag rules | External governance | pending reviewer selection | Repository workflows use `npm-release` and `github-release`; account-level reviewers and tag rules must be activated. |
 | 3 | Signed integration registry | Security / onboarding | implemented | Doctor verifies an Ed25519-signed versioned manifest and registry-discovered entrypoint checksums; environment overrides retain precedence. |
 | 4 | Approval detail binding | Security | implemented | Approval entries bind operation ID, executable, entrypoint, workspace, revision, argument and payload digests, and output root. |
-| 5 | Supported-platform matrix | Compatibility | implemented; remote pass required | CI and release workflows cover Linux, macOS, and Windows with Node 22 and 24. |
+| 5 | Supported-platform matrix | Compatibility | implemented and passing | CI and release workflows cover Linux, macOS, and Windows with Node 22 and 24; main CI run `33272349037` passed all six cells. |
 | 6 | Real Pi host lifecycle contracts | Integration | implemented | The default gate packs the package, loads it through Pi RPC, and combines host lifecycle coverage with trust, approval, cancellation, rendering, and receipt contracts. |
 | 7 | Service contract fixtures | Network | implemented | Offline fixtures cover TLS policy, authorization, audience, redirects, retries, timeouts, cancellation, large bodies, and malformed responses. |
 | 8 | Versioned result and receipt schemas | Functionality | implemented | Results, approvals, and receipts have documented v1 schemas, stable operation IDs, and artifact digests without raw output or secrets. |
@@ -25,6 +25,7 @@ That does not make any client integration universally enterprise-ready. The Pi h
 
 - Which maintainers should review `npm-release` and `github-release` deployments?
 - Which maintainers may create protected `v*.*.*` tags?
+- Has the repository dependency graph been enabled so pull-request dependency review can run?
 - Has npm trusted publishing been bound to this repository and release workflow?
 - Did the first remote six-cell platform matrix and protected release rehearsal pass for the exact version?
 
