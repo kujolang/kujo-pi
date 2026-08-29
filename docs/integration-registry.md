@@ -29,6 +29,6 @@ All three paths must be absolute. Supplying another public key is an explicit tr
 
 ## Registry updates and key rotation
 
-The committed private signing key is intentionally not present in this repository. Update the manifest only through the release owner that controls the signing key. Sign the canonical JSON representation used by `src/contracts.mjs`, replace the detached signature, and run `node tests/registry-contract.mjs`.
+The private key used for the initial registry snapshot is intentionally not retained in this repository. Before the first registry update, the release owner must provision an offline Ed25519 signing key and rotate the pinned public key in a separately reviewed security commit. Later registry updates must be signed with that protected key; sign the canonical JSON representation used by `src/contracts.mjs`, replace the detached signature, and run `node tests/registry-contract.mjs`.
 
 If the signing key must rotate, review the new public key as a separate security-sensitive change. Do not combine an unexplained key rotation with integration metadata changes.

@@ -24,7 +24,7 @@ assert.deepEqual(commandResult({ stdout: "ok", stderr: "", code: 0, killed: fals
 });
 assert.equal(commandResult({ stdout: "", stderr: "", code: null, killed: true, timedOut: true }, "test").status, "timeout");
 assert.equal(commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, "test").status, "cancelled");
-assert.match(receiptPath(root, "run-1"), /\.kujo\/pi\/receipts\/run-1\.json$/);
+assert.equal(receiptPath(root, "run-1"), join(root, ".kujo", "pi", "receipts", "run-1.json"));
 assert.throws(() => receiptPath(root, "../bad"), /runId/);
 assert.equal(sameOriginUrl("http://127.0.0.1:4318", "/health").href, "http://127.0.0.1:4318/health");
 assert.throws(() => sameOriginUrl("http://127.0.0.1:4318", "https://example.com/"), /begin with/);
