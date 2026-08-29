@@ -80,9 +80,9 @@ if (ecosystemRoot) {
   console.log(`ecosystem live contract passed (${results.length} adapters)`);
 }
 
-for (const [name, base] of [["watchdog", process.env.KUJO_WATCHDOG_URL], ["leash", process.env.KUJO_LEASH_URL]]) {
+for (const [name, base, healthPath] of [["watchdog", process.env.KUJO_WATCHDOG_URL, "/healthz"], ["leash", process.env.KUJO_LEASH_URL, "/health"]]) {
   if (!base) continue;
-  const response = await fetch(sameOriginUrl(base, "/health"), { signal: AbortSignal.timeout(15_000) });
+  const response = await fetch(sameOriginUrl(base, healthPath), { signal: AbortSignal.timeout(15_000) });
   assert.ok(response.status < 500, `${name} health returned ${response.status}`);
 }
 console.log("live adapter smoke passed");

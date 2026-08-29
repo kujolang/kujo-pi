@@ -101,13 +101,16 @@ const dispatchCall = execCalls.find(({ args }) => args[0] === "run" && args[2] =
 assert.deepEqual(dispatchCall?.args.slice(0, 3), ["run", realpathSync(trustedEntrypoint), "demo"], "Dispatch must use its configured command surface, not a workspace fallback");
 const previousFetch = globalThis.fetch;
 let watchdogFetchOptions: RequestInit | undefined;
+let watchdogFetchUrl = "";
 process.env.KUJO_WATCHDOG_URL = "http://127.0.0.1:4318";
-globalThis.fetch = async (_input, init) => {
+globalThis.fetch = async (input, init) => {
+  watchdogFetchUrl = String(input);
   watchdogFetchOptions = init;
   return { ok: true, status: 200, text: async () => "ok" } as Response;
 };
 const watchdog = await byName("kujo_watchdog").execute("health", {}, undefined, undefined, ctx);
 assert.equal(watchdog.details.status, "success");
+assert.equal(watchdogFetchUrl, "http://127.0.0.1:4318/healthz");
 assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
 globalThis.fetch = previousFetch;
 delete process.env.KUJO_WATCHDOG_URL;

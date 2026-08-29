@@ -356,7 +356,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       const base = process.env.KUJO_WATCHDOG_URL;
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_WATCHDOG_URL to opt into Watchdog telemetry." });
       try {
-        const endpoint = sameOriginUrl(base, params.path || "/health");
+        const endpoint = sameOriginUrl(base, params.path || "/healthz");
         const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_WATCHDOG") }), signal);
         const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
         recordReceipt(pi, "watchdog", ctx.cwd, result);
