@@ -91,7 +91,9 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: sha256sum --check release/kujo-pi.tgz.sha256
+      - name: Verify downloaded artifact checksum
+        working-directory: release
+        run: sha256sum --check kujo-pi.tgz.sha256
       - run: npm publish release/kujo-pi.tgz --provenance --access public
 
   publish-github:
@@ -106,7 +108,9 @@ jobs:
         with:
           name: npm-package
           path: release
-      - run: sha256sum --check release/kujo-pi.tgz.sha256
+      - name: Verify downloaded artifact checksum
+        working-directory: release
+        run: sha256sum --check kujo-pi.tgz.sha256
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
