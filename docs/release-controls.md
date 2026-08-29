@@ -4,6 +4,10 @@ The repository release workflow is ready for protected npm and GitHub publicatio
 
 Before creating the first version tag, configure these external controls.
 
+## Dependency graph
+
+Enable **Settings → Advanced Security → Dependency graph**. Pull-request dependency review is deliberately required and will fail closed until the repository dependency graph is enabled.
+
 ## GitHub environments
 
 Create environments named exactly:
@@ -28,12 +32,13 @@ Configure `@kujolang/kujo-pi` to trust the `kujolang/kujo-pi` repository and `.g
 
 ## Final release rehearsal
 
-1. Confirm both GitHub environments have the intended reviewers.
-2. Confirm the tag ruleset is active.
-3. Confirm npm trusted publishing points to the exact repository and workflow.
-4. Bump `package.json` and `package-lock.json` together.
-5. Run `npm ci --ignore-scripts`, `npm test`, and `npm audit --omit=dev --audit-level=high`.
-6. Create the protected version tag.
-7. Approve the protected environments.
-8. Verify the npm provenance, GitHub attestation, SBOM, checksum, tag, and package version all describe the same artifact.
-9. Install the published package in a fresh Pi profile and run `kujo_doctor` before promotion.
+1. Confirm the dependency graph is enabled and dependency review passes on a pull request.
+2. Confirm both GitHub environments have the intended reviewers.
+3. Confirm the tag ruleset is active.
+4. Confirm npm trusted publishing points to the exact repository and workflow.
+5. Bump `package.json` and `package-lock.json` together.
+6. Run `npm ci --ignore-scripts`, `npm test`, and `npm audit --omit=dev --audit-level=high`.
+7. Create the protected version tag.
+8. Approve the protected environments.
+9. Verify the npm provenance, GitHub attestation, SBOM, checksum, tag, and package version all describe the same artifact.
+10. Install the published package in a fresh Pi profile and run `kujo_doctor` before promotion.
