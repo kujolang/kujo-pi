@@ -11,8 +11,8 @@ test -f skills/kujo-way/SKILL.md
 test -f skills/kujo-review/SKILL.md
 test -f skills/kujo-release/SKILL.md
 test -f prompts/kujo-finish.md
-rg -n 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' extensions/kujo.ts >/dev/null
-rg -n 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs >/dev/null
+grep -Eq 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' extensions/kujo.ts
+grep -Eq 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs
 node tests/core-contract.mjs
 npm run test:extension
 node tests/package-contract.mjs
