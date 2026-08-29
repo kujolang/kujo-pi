@@ -87,4 +87,15 @@ const untrusted = new PiTelemetryBridge({ environment, fetchImpl: async () => ({
 await untrusted.startSession({ sessionId: "session-2", workspace: rawWorkspace, trusted: false });
 assert.equal(untrusted.enabled, false, "untrusted projects must not activate background telemetry");
 
+const boundedRoot = await mkdtemp(join(tmpdir(), "kujo-pi-telemetry-bounded-"));
+const boundedBridge = new PiTelemetryBridge({
+  environment: { ...environment, KUJO_PI_TELEMETRY_SPOOL_DIR: boundedRoot, KUJO_PI_TELEMETRY_SPOOL_MAX_FILES: "10" },
+  fetchImpl: async () => { throw new Error("Watchdog unavailable"); },
+});
+await boundedBridge.startSession({ sessionId: "session-bounded", workspace: rawWorkspace, trusted: true });
+await boundedBridge.startRun();
+for (let index = 0; index < 30; index += 1) boundedBridge.userBash("git status", false);
+await boundedBridge.spool.writeChain;
+assert.ok((await boundedBridge.spool.files()).length <= 10, "spool file count must remain bounded during prolonged Watchdog downtime");
+
 console.log("telemetry contract validation passed");
