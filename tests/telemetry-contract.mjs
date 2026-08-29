@@ -73,6 +73,8 @@ assert.doesNotMatch(queuedText, /tool_args|tool_result|prompt|response_body/, "m
 assert.match(queuedText, new RegExp(TELEMETRY_SCHEMA_VERSION.replaceAll(".", "\\.")));
 assert.match(queuedText, /"command_class":"network"/);
 assert.match(queuedText, /"span_kind":"shell"/);
+assert.match(queuedText, /"span_kind":"persistence"/);
+assert.match(queuedText, /"event_name":"persistence_saved"/);
 
 accept = true;
 await bridge.spool.flush();

@@ -378,6 +378,7 @@ export class PiTelemetryBridge {
     const run = this.run;
     const endedAt = this.now();
     const finalStatus = run.status === "running" ? status : run.status;
+    const persistenceSpanId = this.uuid();
     await this.append({
       input_tokens: run.usage.input,
       output_tokens: run.usage.output,
@@ -387,12 +388,22 @@ export class PiTelemetryBridge {
         input_tokens: run.usage.input, output_tokens: run.usage.output, cached_input_tokens: run.usage.cacheRead, cache_write_input_tokens: run.usage.cacheWrite,
         attributes: cleanAttributes({ project_hash: this.projectId, telemetry_mode: "metadata", provider: this.provider, model: this.model, attempts: run.attempt }),
       },
-      spans: [{
-        span_id: run.rootSpanId, parent_span_id: "", span_kind: "workflow", name: "pi.agent_run", status: finalStatus,
-        started_at_ms: run.startedAt, ended_at_ms: endedAt, duration_ms: Math.max(0, endedAt - run.startedAt),
-        attributes: { attempts: run.attempt },
-      }],
-      events: [this.nextEvent(finalStatus === "success" ? "run_completed" : "run_failed", run.rootSpanId, { status: finalStatus })],
+      spans: [
+        {
+          span_id: run.rootSpanId, parent_span_id: "", span_kind: "workflow", name: "pi.agent_run", status: finalStatus,
+          started_at_ms: run.startedAt, ended_at_ms: endedAt, duration_ms: Math.max(0, endedAt - run.startedAt),
+          attributes: { attempts: run.attempt },
+        },
+        {
+          span_id: persistenceSpanId, parent_span_id: run.rootSpanId, span_kind: "persistence", name: "pi.telemetry_spool", status: "success",
+          started_at_ms: endedAt, ended_at_ms: endedAt, duration_ms: 0,
+          attributes: { storage: "local_spool", durability: "atomic_file" },
+        },
+      ],
+      events: [
+        this.nextEvent(finalStatus === "success" ? "run_completed" : "run_failed", run.rootSpanId, { status: finalStatus }),
+        this.nextEvent("persistence_saved", persistenceSpanId, { storage: "local_spool" }),
+      ],
     });
     this.run = null;
   }
