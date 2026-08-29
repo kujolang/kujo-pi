@@ -23,11 +23,21 @@ for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release.y
 }
 
 const release = readFileSync(".github/workflows/release.yml", "utf8");
+const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 assert.doesNotMatch(release, /workflow_dispatch/);
 assert.match(release, /expected_tag=.*package\.json/);
 assert.match(release, /merge-base --is-ancestor/);
 assert.match(release, /publish-npm:[\s\S]*id-token: write/);
 assert.match(release, /publish-github:[\s\S]*contents: write/);
 assert.match(release, /npm publish release\/kujo-pi\.tgz --provenance --access public/);
+assert.match(ci, /ubuntu-latest, macos-latest, windows-latest/);
+assert.match(ci, /actions\/dependency-review-action@[a-f0-9]{40}/);
+assert.match(release, /ubuntu-latest, macos-latest, windows-latest/);
+assert.match(release, /environment: npm-release/);
+assert.match(release, /environment: github-release/);
+assert.match(release, /actions\/attest-build-provenance@[a-f0-9]{40}/);
+assert.match(release, /kujo-pi\.sbom\.cdx\.json/);
+assert.match(release, /provenance\.bundle\.jsonl/);
+assert.match(readFileSync(".github/dependabot.yml", "utf8"), /package-ecosystem: github-actions/);
 
 console.log("repository contract validation passed");

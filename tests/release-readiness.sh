@@ -14,9 +14,15 @@ test -f prompts/kujo-finish.md
 grep -Eq 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' src/extension.ts
 grep -Eq 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs
 node tests/core-contract.mjs
+node tests/schema-contract.mjs
+node tests/registry-contract.mjs
+node tests/service-contract.mjs
 node tests/telemetry-contract.mjs
 npm run test:extension
+node tests/pi-host-contract.mjs
+node tests/performance-contract.mjs
 node tests/package-contract.mjs
+node tests/release-artifact-contract.mjs
 node tests/docs-contract.mjs
 node tests/repository-contract.mjs
 git diff --check
