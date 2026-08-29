@@ -1,6 +1,6 @@
 # Kujo Pi
 
-[![Version](https://img.shields.io/badge/version-0.3.0-black)](https://github.com/kujolang/kujo-pi)
+[![Version](https://img.shields.io/badge/version-0.3.1-black)](https://github.com/kujolang/kujo-pi)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![built with Kujo](https://img.shields.io/badge/built%20with-Kujo-white.svg)](https://github.com/kujolang/kujo)
 [![CI](https://github.com/kujolang/kujo-pi/actions/workflows/ci.yml/badge.svg)](https://github.com/kujolang/kujo-pi/actions)
