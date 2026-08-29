@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kujolang.org/schemas/pi/receipt-v1.schema.json",
+  "title": "Kujo Pi receipt v1",
+  "type": "object",
+  "required": ["schemaVersion", "operationId", "operation", "workspaceHash", "status", "recordedAt"],
+  "properties": {
+    "schemaVersion": { "const": "kujo.pi.receipt.v1" },
+    "operationId": { "type": "string", "minLength": 1 },
+    "operation": { "type": "string", "minLength": 1 },
+    "workspaceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": { "type": "string" },
+    "artifactDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "recordedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

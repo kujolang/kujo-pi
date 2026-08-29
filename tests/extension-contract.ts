@@ -2,19 +2,24 @@ import assert from "node:assert/strict";
 import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import kujoPi from "../extensions/kujo.ts";
+import { performance } from "node:perf_hooks";
+import kujoPi, { runStreamingCommand } from "../src/extension.ts";
 
 const tools: Array<{ name: string; renderResult?: unknown }> = [];
 const commands: string[] = [];
 const handlers: string[] = [];
+const eventHandlers = new Map<string, (...args: any[]) => any>();
 const execCalls: Array<{ command: string; args: string[] }> = [];
+const appendedEntries: Array<{ type: string; data: any }> = [];
 let execMode: "success" | "missing" | "timeout" = "success";
+let activeTools = ["read"];
 const pi = {
   registerCommand(name: string) { commands.push(name); },
   registerTool(tool: { name: string; renderResult?: unknown }) { tools.push(tool); },
-  on(name: string) { handlers.push(name); },
-  getActiveTools() { return ["read"]; },
-  setActiveTools() {},
+  on(name: string, handler: (...args: any[]) => any) { handlers.push(name); eventHandlers.set(name, handler); },
+  getActiveTools() { return [...activeTools]; },
+  setActiveTools(value: string[]) { activeTools = [...value]; },
+  appendEntry(type: string, data: any) { appendedEntries.push({ type, data }); },
   async exec(command: string, args: string[]) {
     execCalls.push({ command, args });
     if (execMode === "missing") throw new Error("ENOENT: command not found");
@@ -38,10 +43,36 @@ assert.deepEqual(handlers, [
   "tool_execution_start", "tool_execution_end", "user_bash", "model_select", "before_provider_headers", "session_shutdown",
 ]);
 
+activeTools = ["read", "kujo_scout", "kujo_watchdog"];
+await eventHandlers.get("session_start")?.({}, {
+  cwd: mkdtempSync(join(tmpdir(), "kujo-pi-session-")),
+  ui: { setStatus() {} },
+  model: undefined,
+  isProjectTrusted: () => true,
+  sessionManager: { getSessionId: () => "session-fixture" },
+});
+assert.deepEqual(activeTools, ["read"], "session startup must reset optional activation");
+
 const byName = (name: string) => tools.find((tool) => tool.name === name) as any;
 const ctx = { cwd: mkdtempSync(join(tmpdir(), "kujo-pi-extension-")), hasUI: false, isProjectTrusted: () => true };
+const doctorStarted = performance.now();
+const doctor = await byName("kujo_doctor").execute("doctor", {}, undefined, undefined, ctx);
+assert.ok(performance.now() - doctorStarted < 500, "Doctor mock contract exceeded its startup budget");
+assert.equal(doctor.details.registry.signatureVerified, true);
+assert.ok(Array.isArray(doctor.details.remediations));
+process.env.KUJO_PI_MIN_KUJO_VERSION = "9.0.0";
+process.env.KUJO_WATCHDOG_URL = "http://example.com";
+process.env.KUJO_LEASH_URL = "https://leash.example.test";
+const doctorNeedsFixes = await byName("kujo_doctor").execute("doctor-fixes", {}, undefined, undefined, ctx);
+assert.ok(doctorNeedsFixes.details.remediations.some(({ status }: any) => status === "unsupported_version"));
+assert.ok(doctorNeedsFixes.details.remediations.some(({ status }: any) => status === "policy_rejected"));
+assert.ok(doctorNeedsFixes.details.remediations.some(({ status }: any) => status === "missing_token"));
+delete process.env.KUJO_PI_MIN_KUJO_VERSION;
+delete process.env.KUJO_WATCHDOG_URL;
+delete process.env.KUJO_LEASH_URL;
 const success = await byName("kujo_status").execute("1", {}, undefined, undefined, ctx);
 assert.equal(success.details.status, "success");
+assert.equal(success.details.schemaVersion, "kujo.pi.result.v1");
 execMode = "missing";
 const missing = await byName("kujo_status").execute("2", {}, undefined, undefined, ctx);
 assert.equal(missing.details.status, "dependency_unavailable");
@@ -96,13 +127,29 @@ const fixtures: Array<[string, Record<string, unknown>]> = [
 for (const [name, params] of fixtures) {
   const result = await byName(name).execute("fixture", params, undefined, undefined, approvedCtx);
   assert.equal(result.details.status, "success", `${name} fixture failed`);
+  assert.equal(result.details.schemaVersion, "kujo.pi.result.v1", `${name} must return the versioned result contract`);
 }
+const approvalEntry = appendedEntries.find(({ type }) => type === "kujo-approval");
+assert.equal(approvalEntry?.data.schemaVersion, "kujo.pi.approval.v1");
+assert.match(approvalEntry?.data.argumentsDigest || "", /^[a-f0-9]{64}$/);
+assert.equal(approvalEntry?.data.approvalSource, "interactive_ui");
+const previousReceipts = process.env.KUJO_PI_RECEIPTS;
+process.env.KUJO_PI_RECEIPTS = "1";
+await byName("kujo_status").execute("receipt", {}, undefined, undefined, ctx);
+const receiptEntry = appendedEntries.find(({ type }) => type === "kujo-receipt");
+assert.equal(receiptEntry?.data.schemaVersion, "kujo.pi.receipt.v1");
+assert.match(receiptEntry?.data.workspaceHash || "", /^[a-f0-9]{64}$/);
+assert.equal("workspace" in (receiptEntry?.data || {}), false);
+if (previousReceipts === undefined) delete process.env.KUJO_PI_RECEIPTS;
+else process.env.KUJO_PI_RECEIPTS = previousReceipts;
 const dispatchCall = execCalls.find(({ args }) => args[0] === "run" && args[2] === "demo");
 assert.deepEqual(dispatchCall?.args.slice(0, 3), ["run", realpathSync(trustedEntrypoint), "demo"], "Dispatch must use its configured command surface, not a workspace fallback");
 const previousFetch = globalThis.fetch;
 let watchdogFetchOptions: RequestInit | undefined;
 let watchdogFetchUrl = "";
 process.env.KUJO_WATCHDOG_URL = "http://127.0.0.1:4318";
+process.env.KUJO_WATCHDOG_TOKEN = "fixture-token";
+process.env.KUJO_WATCHDOG_AUDIENCE = "fixture-audience";
 globalThis.fetch = async (input, init) => {
   watchdogFetchUrl = String(input);
   watchdogFetchOptions = init;
@@ -112,11 +159,20 @@ const watchdog = await byName("kujo_watchdog").execute("health", {}, undefined, 
 assert.equal(watchdog.details.status, "success");
 assert.equal(watchdogFetchUrl, "http://127.0.0.1:4318/healthz");
 assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
+assert.equal((watchdogFetchOptions?.headers as Record<string, string>).authorization, "Bearer fixture-token");
+assert.equal((watchdogFetchOptions?.headers as Record<string, string>)["x-kujo-audience"], "fixture-audience");
 globalThis.fetch = previousFetch;
 delete process.env.KUJO_WATCHDOG_URL;
+delete process.env.KUJO_WATCHDOG_TOKEN;
+delete process.env.KUJO_WATCHDOG_AUDIENCE;
 for (const variable of ["KUJO_SCOUT_ENTRY", "KUJO_SCENT_ENTRY", "KUJO_MCP_ENTRY", "KUJO_AGENTS_SMOKE_ENTRY", "KUJO_RAG_ENTRY", "KUJO_DISPATCH_ENTRY"]) {
   delete process.env[variable];
 }
+const controller = new AbortController();
+const cancellation = runStreamingCommand(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], ctx.cwd, controller.signal, 5_000, () => {});
+setTimeout(() => controller.abort(), 25);
+const cancelled = await cancellation;
+assert.equal(cancelled.status, "cancelled");
 console.log("extension contract validation passed");
 }
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kujolang.org/schemas/pi/approval-v1.schema.json",
+  "title": "Kujo Pi approval binding v1",
+  "type": "object",
+  "required": ["schemaVersion", "operationId", "operation", "command", "workspace", "argumentsDigest", "payloadDigest", "approvalSource", "approvedAt"],
+  "properties": {
+    "schemaVersion": { "const": "kujo.pi.approval.v1" },
+    "operationId": { "type": "string", "minLength": 1 },
+    "argumentsDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "payloadDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "approvalSource": { "enum": ["interactive_ui", "trusted_headless_confirm"] }
+  },
+  "additionalProperties": true
+}

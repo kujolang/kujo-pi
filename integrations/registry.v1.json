@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "kujo.pi.integration-registry.v1",
+  "registryVersion": 1,
+  "issuedAt": "2026-08-29T00:00:00Z",
+  "ecosystemRootEnvironment": "KUJO_ECOSYSTEM_ROOT",
+  "integrations": [
+    {
+      "id": "scout",
+      "version": "682490313f0e1424d731eaf7892455569e171cee",
+      "capabilities": ["repository-intelligence"],
+      "command": "scout",
+      "binaryEnvironment": "KUJO_SCOUT_BIN",
+      "entrypointEnvironment": "KUJO_SCOUT_ENTRY",
+      "relativeEntrypoint": "scout/scout.kujo",
+      "sha256": "01edd32380c9cc15af9e9cf7663e4c55ec60ecc15fbf8d12544e05b48e1f39fd"
+    },
+    {
+      "id": "scent",
+      "version": "6e72cd06bf422a29e93148cf4edaddd98d937392",
+      "capabilities": ["context-pack"],
+      "command": "scent",
+      "binaryEnvironment": "KUJO_SCENT_BIN",
+      "entrypointEnvironment": "KUJO_SCENT_ENTRY",
+      "relativeEntrypoint": "scent/scent.kujo",
+      "sha256": "01c16d6dfe3db280c5fc9a0ab689dc6de288f749daac17c9acadbb898f174f98"
+    },
+    {
+      "id": "patchbrief",
+      "version": "1e9ada307f16138dc705a32619cda11a0206d9c2",
+      "capabilities": ["change-review"],
+      "command": "patchbrief",
+      "binaryEnvironment": "KUJO_PATCHBRIEF_BIN",
+      "entrypointEnvironment": "KUJO_PATCHBRIEF_ENTRY",
+      "relativeEntrypoint": "patchbrief/patchbrief.kujo",
+      "sha256": "b373171cf9766da4aea25162555206f9c909f7e1b37d072a0013add353c982e7"
+    },
+    {
+      "id": "changebucket",
+      "version": "6fcaf41e7ca6c317ebb3b3408b4d185e76fb1640",
+      "capabilities": ["change-footprint"],
+      "command": "changebucket",
+      "binaryEnvironment": "KUJO_CHANGEBUCKET_BIN",
+      "entrypointEnvironment": "KUJO_CHANGEBUCKET_ENTRY",
+      "relativeEntrypoint": "changebucket/changebucket.kujo",
+      "sha256": "74613364f008c52238aaeb89db99076229bca83a1e9ace50ee2b7037f179a9fd"
+    },
+    {
+      "id": "shipcheck",
+      "version": "4c958ab18d8a48b22d6a116f7074e1abd7f85d69db25bbbce1383200fa9cb061",
+      "capabilities": ["release-readiness"],
+      "command": "shipcheck",
+      "binaryEnvironment": "KUJO_SHIPCHECK_BIN",
+      "entrypointEnvironment": "KUJO_SHIPCHECK_ENTRY",
+      "relativeEntrypoint": "shipcheck/shipcheck.kujo",
+      "sha256": "f0cc14f6178d48b22d6a116f7074e1abd7f85d69db25bbbce1383200fa9cb061"
+    },
+    {
+      "id": "mcp",
+      "version": "2ab8111f2c5174841204f5c762d8ce8d281e57b6",
+      "capabilities": ["mcp-generation"],
+      "command": null,
+      "binaryEnvironment": null,
+      "entrypointEnvironment": "KUJO_MCP_ENTRY",
+      "relativeEntrypoint": "mcp/mcp.kujo",
+      "sha256": "bb3862ffc9fb2180ca0eaa3dbe7776253d0c99416c248e747282f2e9f5867a34"
+    },
+    {
+      "id": "dispatch",
+      "version": "662417c264bd55f8d802eef3fc21f9f372590753",
+      "capabilities": ["workflow-orchestration"],
+      "command": null,
+      "binaryEnvironment": null,
+      "entrypointEnvironment": "KUJO_DISPATCH_ENTRY",
+      "relativeEntrypoint": "dispatch/dispatch.kujo",
+      "sha256": "aafb17a79a5dfb06555e478f21fa6a61ce6b8652f175735e6792afae3f679064"
+    },
+    {
+      "id": "agents",
+      "version": "d3904d348754b492bda298b6c30f49c1eb24b7ea",
+      "capabilities": ["agent-fixtures"],
+      "command": null,
+      "binaryEnvironment": null,
+      "entrypointEnvironment": "KUJO_AGENTS_SMOKE_ENTRY",
+      "relativeEntrypoint": "agents-sdk/examples/examples_smoke_runner.kujo",
+      "sha256": "04ce7885175168be67bab554b9d6e2c1eb12667b42f15537c73c9bf4b61d052a"
+    },
+    {
+      "id": "rag",
+      "version": "28690e3aa1b7a5947616843574cacf03b32905c9",
+      "capabilities": ["retrieval"],
+      "command": null,
+      "binaryEnvironment": null,
+      "entrypointEnvironment": "KUJO_RAG_ENTRY",
+      "relativeEntrypoint": "rag/main.kujo",
+      "sha256": "4fa84a3cf75bd4c85c6e4f315a1b02cdb7cc526343d2704f10fc034881bab653"
+    },
+    {
+      "id": "runledger",
+      "version": "12bbf2b3723325913eb75ececaba0ce3fdc68b87",
+      "capabilities": ["run-receipts"],
+      "command": "runledger",
+      "binaryEnvironment": "KUJO_RUNLEDGER_BIN",
+      "entrypointEnvironment": "KUJO_RUNLEDGER_ENTRY",
+      "relativeEntrypoint": "runledger/runledger.kujo",
+      "sha256": "a8bd71847bc4583d8c80fd1f4701a59e582d4ac4b2b13eb26cbb9db3ecf9bed6"
+    }
+  ]
+}

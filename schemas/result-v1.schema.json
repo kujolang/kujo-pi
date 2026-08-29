@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kujolang.org/schemas/pi/result-v1.schema.json",
+  "title": "Kujo Pi tool result v1",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": "kujo.pi.result.v1" },
+    "operationId": { "type": ["string", "null"] },
+    "ok": { "type": "boolean" },
+    "status": { "type": "string" },
+    "label": { "type": "string" },
+    "code": { "type": ["integer", "null"] },
+    "durationMs": { "type": ["number", "null"], "minimum": 0 }
+  },
+  "additionalProperties": true
+}

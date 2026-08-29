@@ -23,6 +23,8 @@
     "skills",
     "prompts",
     "src",
+    "integrations",
+    "schemas",
     "README.md",
     "SECURITY.md",
     "LICENSE",
@@ -37,6 +39,9 @@
     "test:docs": "node tests/docs-contract.mjs",
     "test:extension": "tsx tests/extension-contract.ts",
     "test:live": "node tests/live-smoke.mjs",
+    "test:host": "node tests/pi-host-contract.mjs",
+    "test:performance": "node tests/performance-contract.mjs",
+    "release:artifacts": "node scripts/build-release-artifacts.mjs",
     "typecheck": "tsc --noEmit",
     "format:check": "git diff --check"
   },
