@@ -223,6 +223,11 @@ Set these variables in the environment inherited by Pi. Do not put secrets in `.
 
 ### Optional Watchdog and Leash services
 
+The `KUJO_WATCHDOG_URL` setting enables Kujo Pi's read-only Watchdog tool; it
+does not reroute Pi's model provider. To capture Pi model traffic in Watchdog,
+configure a Watchdog-backed Pi provider as described in
+[the Watchdog proxy guide](watchdog-pi-proxy.md).
+
 For local services:
 
 ```bash

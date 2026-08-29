@@ -9,6 +9,9 @@ An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewabl
 
 New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
 
+To route Pi model requests through the local Watchdog observability proxy, see
+[Route Pi model traffic through Watchdog](docs/watchdog-pi-proxy.md).
+
 Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: repository intelligence, scoped context, deterministic checks, workflow orchestration, approvals, receipts, telemetry, retrieval, and guarded MCP generation.
 
 Kujo Pi is designed for production use within a clear boundary: it is a local client integration, not a universal enterprise platform. Enterprise readiness also depends on the Pi host, the installed Kujo tools, service policy, release controls, and organization-specific testing. `kujo_doctor`, project-trust checks, explicit entrypoint configuration, and approval gates make those dependencies visible.
