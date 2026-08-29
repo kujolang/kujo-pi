@@ -16,6 +16,7 @@ grep -Eq 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs
 node tests/core-contract.mjs
 npm run test:extension
 node tests/package-contract.mjs
+node tests/repository-contract.mjs
 git diff --check
 
 echo "kujo-pi release-readiness validation passed"

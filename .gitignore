@@ -2,5 +2,4 @@ node_modules/
 .DS_Store
 .pi/
 .kujo/
-.loop-engineering/iterations/*/diff.patch
-.loop-engineering/iterations/*/eval.log
+.loop-engineering/

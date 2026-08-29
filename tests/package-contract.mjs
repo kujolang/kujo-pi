@@ -5,6 +5,7 @@ const result = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json"], {
 const files = result[0].files.map(({ path }) => path);
 assert.ok(files.includes("extensions/kujo.ts"));
 assert.ok(files.includes("src/core.mjs"));
+assert.ok(files.includes("src/extension.ts"));
 assert.ok(files.includes("docs/enterprise-roadmap.md"));
 for (const forbidden of ["tests/", ".github/", ".loop-engineering/", "node_modules/"]) {
   assert.equal(files.some((path) => path.startsWith(forbidden)), false, `package contains ${forbidden}`);
