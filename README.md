@@ -8,6 +8,7 @@
 An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewable bridge into the Kujo ecosystem.
 
 New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
+For copy-ready examples for every capability, see [Capability examples](docs/capability-examples.md).
 
 To route Pi model requests through the local Watchdog observability proxy, see
 [Route Pi model traffic through Watchdog](docs/watchdog-pi-proxy.md).
@@ -18,7 +19,7 @@ Kujo Pi does not replace Pi's workflow. It adds Kujo only when it is useful: rep
 
 Kujo Pi is designed for production use within a clear boundary: it is a local client integration, not a universal enterprise platform. Enterprise readiness also depends on the Pi host, the installed Kujo tools, service policy, release controls, and organization-specific testing. `kujo_doctor`, project-trust checks, explicit entrypoint configuration, and approval gates make those dependencies visible.
 
-The default test suite is offline. It covers supported Node versions, package contents, documentation links, path and origin containment, bounded I/O, project trust, approval behavior, entrypoint provenance, and release-workflow invariants.
+The default test suite is offline. It covers supported Node versions, the packed extension running through a real Pi RPC host, package contents, signed registry integrity, service failure fixtures, performance budgets, path and origin containment, bounded I/O, project trust, approval binding, entrypoint provenance, and release-workflow invariants.
 
 ## Install
 
@@ -40,7 +41,7 @@ pi install -l git:github.com/kujolang/kujo-pi@<full-commit-sha>
 pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
-The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Workflow entrypoints must be configured as absolute paths; Kujo Pi never executes a same-named `.kujo` file merely because it exists in the open repository. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
+The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Set `KUJO_ECOSYSTEM_ROOT` to a Kujo ecosystem checkout to let the signed registry discover and checksum canonical workflow entrypoints, or configure explicit absolute overrides. Kujo Pi never executes a same-named `.kujo` file merely because it exists in the open repository. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
 
 ## First use
 
@@ -49,6 +50,12 @@ Configure the Kujo workflow you want to use. For example:
 ```bash
 export KUJO_SCOUT_ENTRY="/absolute/path/to/scout/scout.kujo"
 export KUJO_SCENT_ENTRY="/absolute/path/to/scent/scent.kujo"
+```
+
+For a standard Kujo ecosystem checkout, one root replaces the individual entrypoint variables:
+
+```bash
+export KUJO_ECOSYSTEM_ROOT="/absolute/path/to/kujo-repos"
 ```
 
 Then start Pi in a trusted repository and ask naturally:
@@ -62,6 +69,7 @@ Useful commands and prompts:
 ```text
 /kujo
 /kujo list
+/kujo active
 /kujo enable kujo_scout kujo_scent
 /kujo init
 /kujo-finish
@@ -101,16 +109,18 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | Variable | Meaning |
 |---|---|
 | `KUJO_BIN` | Kujo runtime executable; default `kujo` |
+| `KUJO_ECOSYSTEM_ROOT` | Optional ecosystem checkout discovered through the signed integration registry |
+| `KUJO_INTEGRATION_REGISTRY` / `KUJO_INTEGRATION_REGISTRY_SIGNATURE` / `KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY` | Optional absolute paths for an operator-trusted registry bundle |
 | `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout binary, or required absolute `.kujo` entrypoint when no binary is configured |
 | `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent binary, or required absolute `.kujo` entrypoint when no binary is configured |
-| `KUJO_PATCHBRIEF_BIN` | PatchBrief executable; default `patchbrief` |
-| `KUJO_CHANGEBUCKET_BIN` | ChangeBucket executable; default `changebucket` |
-| `KUJO_SHIPCHECK_BIN` | ShipCheck executable; default `shipcheck` |
+| `KUJO_PATCHBRIEF_BIN` / `KUJO_PATCHBRIEF_ENTRY` | PatchBrief executable or absolute entrypoint override |
+| `KUJO_CHANGEBUCKET_BIN` / `KUJO_CHANGEBUCKET_ENTRY` | ChangeBucket executable or absolute entrypoint override |
+| `KUJO_SHIPCHECK_BIN` / `KUJO_SHIPCHECK_ENTRY` | ShipCheck executable or absolute entrypoint override |
 | `KUJO_MCP_ENTRY` | Required absolute MCP `mcp.kujo` path |
 | `KUJO_DISPATCH_ENTRY` | Required absolute Dispatch `dispatch.kujo` path |
 | `KUJO_AGENTS_SMOKE_ENTRY` | Required absolute Agents SDK fixture runner path |
 | `KUJO_RAG_ENTRY` | Required absolute RAG `main.kujo` path |
-| `KUJO_RUNLEDGER_BIN` | RunLedger executable; default `runledger` |
+| `KUJO_RUNLEDGER_BIN` / `KUJO_RUNLEDGER_ENTRY` | RunLedger executable or absolute entrypoint override |
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
 | `KUJO_WATCHDOG_TOKEN` / `KUJO_WATCHDOG_AUDIENCE` | Optional Watchdog bearer token and audience header |
 | `KUJO_WATCHDOG_TELEMETRY` | Set to `metadata` to enable the trusted-project lifecycle bridge |
@@ -137,6 +147,8 @@ export KUJO_RAG_ENTRY="$HOME/src/rag/main.kujo"
 ```
 
 Kujo Pi canonicalizes configured entrypoints and refuses missing, relative, or non-file paths. `kujo_doctor` reports `not configured` when an integration still needs setup.
+
+The packaged [signed registry](docs/integration-registry.md) lets Doctor discover and checksum a compatible ecosystem checkout. Every tool result, approval binding, and optional receipt follows the [versioned Kujo Pi contracts](docs/contracts.md).
 
 ## Safety model
 

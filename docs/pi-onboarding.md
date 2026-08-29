@@ -75,6 +75,12 @@ If the binary is elsewhere, configure it for the Pi process:
 export KUJO_BIN="$HOME/src/kujo/target/release/kujo"
 ```
 
+If you have a standard Kujo ecosystem checkout, configure its root once. Doctor verifies the packaged registry signature and checksums canonical entrypoints before using them:
+
+```bash
+export KUJO_ECOSYSTEM_ROOT="$HOME/src/kujo-repos"
+```
+
 Kujo Pi can also call ecosystem entrypoints directly through environment variables. Entrypoints must be absolute existing file paths; the extension does not execute repository-local fallback names. A typical local checkout looks like this:
 
 ```bash
@@ -98,11 +104,15 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
    Use kujo_doctor to check my Kujo Pi setup.
    ```
 
+   Doctor returns one copy-ready remediation for every missing dependency and reports the signed-registry and checksum state.
+
 4. Inspect the available capabilities:
 
    ```text
    Use kujo_tools to list the available Kujo integrations.
    ```
+
+   Run `/kujo active` at any time to see which optional integrations are active in the current session.
 
 5. Enable only what you need:
 
@@ -208,6 +218,7 @@ Set these variables in the environment inherited by Pi. Do not put secrets in `.
 | Variable | Purpose |
 |---|---|
 | `KUJO_BIN` | Kujo runtime executable; default `kujo` |
+| `KUJO_ECOSYSTEM_ROOT` | Discover and verify canonical entrypoints through the signed registry |
 | `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout executable or `.kujo` entrypoint |
 | `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent executable or `.kujo` entrypoint |
 | `KUJO_PATCHBRIEF_BIN` | PatchBrief executable; default `patchbrief` |
@@ -268,7 +279,9 @@ Kujo Pi does not provide tenant isolation, certificate pinning, service authoriz
 
 ### `kujo_doctor` reports a missing dependency
 
-Run `kujo --version`, confirm the binary is on `PATH`, or set `KUJO_BIN` to its absolute path. For ecosystem tools, set the matching entrypoint or standalone binary variable.
+Use the `remediations` returned by Doctor. Run `kujo --version`, confirm the binary is on `PATH`, set `KUJO_BIN` to its absolute path, or configure `KUJO_ECOSYSTEM_ROOT`. For an individual integration, set the matching entrypoint or standalone binary variable.
+
+See the [signed registry contract](integration-registry.md), [versioned result and receipt contracts](contracts.md), and [capability examples](capability-examples.md).
 
 ### An optional tool is not available to Pi
 

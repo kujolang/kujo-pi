@@ -4,32 +4,30 @@ This is the next-session list after the August 2026 repository review. Kujo Pi n
 
 That does not make any client integration universally enterprise-ready. The Pi host, Kujo tools, remote services, operating system, and organization policy remain separate trust and compatibility boundaries.
 
-## Next priorities
+## Readiness status
 
 | Rank | Work item | Type | Estimate | Acceptance criteria |
 |---:|---|---|---:|---|
-| 1 | Configure and rehearse npm trusted publishing | Release | 1 day | A protected test tag publishes the exact verified tarball with provenance; npm, tag, and GitHub release versions match. |
-| 2 | Add protected GitHub release environments and tag rules | Governance | 1 day | npm and GitHub publication require designated reviewers; only approved actors can create or update release tags. |
-| 3 | Add a signed integration registry | Security / onboarding | 3–5 days | Doctor can discover installed Kujo integrations from a versioned manifest with canonical paths, versions, capabilities, and checksums; environment variables remain an override. |
-| 4 | Bind approvals to operation details | Security | 3–5 days | Pi approval records bind the canonical executable, entrypoint, workspace, revision, arguments, output root, and payload digest; headless approval has a documented equivalent. |
-| 5 | Build a supported-platform matrix | Compatibility | 3–5 days | CI and release candidates pass on Linux, macOS, and Windows with Node 22 and 24 and the documented Pi peer range. |
-| 6 | Test real Pi host lifecycle contracts | Integration | 3–5 days | Tests load the packaged extension through Pi, verify session activation reset, project trust, UI approval, cancellation, rendering, and session receipt persistence. |
-| 7 | Add service contract fixtures | Network | 3–5 days | Local fixtures cover TLS policy, authorization failures, audience headers, redirects, retryable status codes, timeouts, cancellation, large bodies, and malformed responses. |
-| 8 | Define versioned result and receipt schemas | Functionality | 2–4 days | Every adapter returns a documented schema version; receipts include stable operation IDs and artifact digests without raw output or secrets. |
-| 9 | Add performance budgets | Performance | 2–4 days | Benchmarks enforce limits for startup work, Doctor latency, streaming memory, large output truncation, retry duration, and large-workspace path checks. |
-| 10 | Add supply-chain attestations | Supply chain | 2–3 days | Releases include an SBOM, tarball checksum, provenance verification result, dependency review, and automated pull requests for pinned Action updates. |
-| 11 | Improve first-run diagnostics | Onboarding | 2–3 days | Doctor reports one copy-ready fix per missing or incompatible dependency and distinguishes missing binary, missing entrypoint, unsupported version, untrusted project, and service-policy errors. |
-| 12 | Publish capability-specific examples | Adoption | 3–5 days | Each tool has one small, reproducible example with expected output, side effects, trust requirements, cleanup, and a link to the Kujo language or canonical component. |
+| 1 | Configure and rehearse npm trusted publishing | External release | pending owner action | A protected version tag publishes the exact verified tarball with provenance; npm, tag, and GitHub release versions match. |
+| 2 | Activate protected GitHub environments and tag rules | External governance | pending reviewer selection | Repository workflows use `npm-release` and `github-release`; account-level reviewers and tag rules must be activated. |
+| 3 | Signed integration registry | Security / onboarding | implemented | Doctor verifies an Ed25519-signed versioned manifest and registry-discovered entrypoint checksums; environment overrides retain precedence. |
+| 4 | Approval detail binding | Security | implemented | Approval entries bind operation ID, executable, entrypoint, workspace, revision, argument and payload digests, and output root. |
+| 5 | Supported-platform matrix | Compatibility | implemented; remote pass required | CI and release workflows cover Linux, macOS, and Windows with Node 22 and 24. |
+| 6 | Real Pi host lifecycle contracts | Integration | implemented | The default gate packs the package, loads it through Pi RPC, and combines host lifecycle coverage with trust, approval, cancellation, rendering, and receipt contracts. |
+| 7 | Service contract fixtures | Network | implemented | Offline fixtures cover TLS policy, authorization, audience, redirects, retries, timeouts, cancellation, large bodies, and malformed responses. |
+| 8 | Versioned result and receipt schemas | Functionality | implemented | Results, approvals, and receipts have documented v1 schemas, stable operation IDs, and artifact digests without raw output or secrets. |
+| 9 | Performance budgets | Performance | implemented | The default gate covers registry startup, large-workspace checks, output truncation, and retry duration. |
+| 10 | Supply-chain attestations | Supply chain | implemented; release run required | Releases produce a checksum, CycloneDX SBOM, verification record, and GitHub provenance; CI adds dependency review and Dependabot updates. |
+| 11 | First-run diagnostics | Onboarding | implemented | Doctor distinguishes configuration states, verifies registry integrity, reports checksums, and returns copy-ready remediations. |
+| 12 | Capability-specific examples | Adoption | implemented | Every tool has a reproducible example with expected behavior, side effects, and cleanup guidance. |
 
-## Review questions for the next session
+## External finalization questions
 
-- Does Pi expose an approval token or event that can be bound to exact tool arguments?
-- Can the Kujo CLI provide a signed machine-readable capability manifest and version negotiation command?
-- Which Pi versions are intentionally supported before `1.0`, and how long will each range receive fixes?
-- Which Windows path, process-group, and signal behaviors need platform-specific implementations?
-- What external npm, GitHub environment, tag-protection, and trusted-publisher settings are already configured?
-- Which metrics can remain local and opt-in while still proving reliability and performance?
+- Which maintainers should review `npm-release` and `github-release` deployments?
+- Which maintainers may create protected `v*.*.*` tags?
+- Has npm trusted publishing been bound to this repository and release workflow?
+- Did the first remote six-cell platform matrix and protected release rehearsal pass for the exact version?
 
 ## Exit standard
 
-Do not call the package universally enterprise-ready. Call a release production-ready only when the repository tests, supported-platform matrix, live Pi contract suite, release rehearsal, provenance verification, and documented external controls all pass for the exact version being shipped.
+Do not call the package universally enterprise-ready. Call a release production-ready only when the repository tests, remote supported-platform matrix, packaged Pi host suite, protected release rehearsal, npm provenance verification, and documented external controls all pass for the exact version being shipped. See [release controls](release-controls.md).
