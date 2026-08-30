@@ -7,7 +7,7 @@
 
 An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewable bridge into the Kujo ecosystem.
 
-New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md).
+New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md). The path to a stable compatibility commitment is tracked in the [v1 readiness roadmap](docs/v1-roadmap.md).
 For copy-ready examples for every capability, see [Capability examples](docs/capability-examples.md).
 
 To route Pi model requests through the local Watchdog observability proxy, see
@@ -45,7 +45,16 @@ The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_B
 
 ## First use
 
-Configure the Kujo workflow you want to use. For example:
+Start Pi in a trusted repository and run:
+
+```text
+/kujo setup
+/kujo packs
+```
+
+`/kujo setup` verifies the signed integration registry, reports how many local integrations are ready, and gives one next action. Task packs keep the tool list focused and survive session reloads. For example, `/kujo enable understand` enables Scout and Scent together.
+
+If automatic registry discovery is not available, configure the Kujo workflow you want to use. For example:
 
 ```bash
 export KUJO_SCOUT_ENTRY="/absolute/path/to/scout/scout.kujo"
@@ -68,16 +77,18 @@ Useful commands and prompts:
 
 ```text
 /kujo
+/kujo setup
+/kujo packs
 /kujo list
 /kujo active
-/kujo enable kujo_scout kujo_scent
+/kujo enable understand
 /kujo init
 /kujo-finish
 Use kujo_tools to see the available integrations.
 Enable kujo_changebucket and review the current changes.
 ```
 
-The package begins with optional and service-backed integrations inactive. A project must be trusted in Pi before these tools can be enabled or run. Ask Pi to enable a capability for the current session when you need it, or use `/kujo enable kujo_scout`.
+The package begins with optional and service-backed integrations inactive. A project must be trusted in Pi before these tools can be enabled or run. Ask Pi to enable a capability when you need it, or use `/kujo enable understand`. Activation is stored in the Pi session and restored when that session is reloaded or its tree is navigated.
 
 `/kujo init` creates only `.kujo/pi/README.md`, refuses to overwrite it, and is useful for making project-local Kujo artifacts visible to a team.
 

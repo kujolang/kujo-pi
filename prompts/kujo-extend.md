@@ -1,0 +1,1 @@
+Extend this repository with Kujo. Enable the `extend` pack, determine whether a guarded MCP scaffold or a cited local RAG query fits the request, and use only the relevant capability. Ask for approval before generating files, keep outputs project-local, and summarize the resulting contract and artifacts.

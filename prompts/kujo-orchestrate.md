@@ -1,0 +1,1 @@
+Plan an appropriate Kujo workflow for my task. Enable the `orchestrate` pack, explain the workflow, outputs, and approval boundary, then wait for approval before execution. Prefer the smallest resumable workflow and preserve its reviewable state.

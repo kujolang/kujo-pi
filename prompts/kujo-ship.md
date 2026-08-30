@@ -1,0 +1,1 @@
+Prepare this repository to ship with Kujo. Enable the `ship` pack, inspect the planned checks, ask for approval before executing ShipCheck, and record the run when RunLedger is available. Report passed gates, failed gates, evidence, and blockers. Do not publish, tag, or push unless I explicitly ask.

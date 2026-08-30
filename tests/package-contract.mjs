@@ -10,6 +10,10 @@ assert.ok(files.includes("src/extension.ts"));
 assert.ok(files.includes("src/telemetry.mjs"));
 assert.ok(files.includes("src/contracts.mjs"));
 assert.ok(files.includes("src/registry.mjs"));
+assert.ok(files.includes("src/capabilities.mjs"));
+for (const prompt of ["understand", "review", "ship", "orchestrate", "extend", "observe"]) {
+  assert.ok(files.includes(`prompts/kujo-${prompt}.md`), `missing packaged ${prompt} task prompt`);
+}
 assert.ok(files.includes("integrations/registry.v1.json"));
 assert.ok(files.includes("integrations/registry.v1.sig"));
 assert.ok(files.includes("integrations/registry.v1.pub.pem"));
@@ -19,6 +23,7 @@ assert.ok(files.includes("schemas/approval-v1.schema.json"));
 assert.ok(files.includes("schemas/integration-registry-v1.schema.json"));
 assert.ok(files.includes("docs/enterprise-roadmap.md"));
 assert.ok(files.includes("docs/production-readiness-next.md"));
+assert.ok(files.includes("docs/v1-roadmap.md"));
 for (const forbidden of ["tests/", ".github/", ".loop-engineering/", "node_modules/"]) {
   assert.equal(files.some((path) => path.startsWith(forbidden)), false, `package contains ${forbidden}`);
 }

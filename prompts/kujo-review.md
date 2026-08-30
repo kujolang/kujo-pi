@@ -1,0 +1,1 @@
+Review the current changes with Kujo. Enable the `review` pack, create a PatchBrief handoff, measure the change footprint, and run only the narrow checks needed to validate the findings. Report actionable issues first, followed by evidence and artifact paths. Do not modify the changes unless I ask.

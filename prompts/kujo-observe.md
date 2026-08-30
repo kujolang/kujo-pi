@@ -1,0 +1,1 @@
+Inspect this run with Kujo. Enable the `observe` pack and use only explicitly configured Watchdog or Leash services. Keep telemetry metadata-only, do not include prompts, tool arguments, shell output, response bodies, secrets, or file contents, and ask for approval before sending a Leash event.

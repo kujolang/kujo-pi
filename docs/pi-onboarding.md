@@ -98,7 +98,13 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
 
 1. Start Pi in the repository you want to work on.
 2. Confirm that Pi marks the project as trusted.
-3. Ask Pi to run Doctor:
+3. Run the setup summary:
+
+   ```text
+   /kujo setup
+   ```
+
+   It verifies the signed registry, reports available local integrations, and gives one next action. Use `kujo_doctor` when you need the full diagnostic record and per-dependency remediations:
 
    ```text
    Use kujo_doctor to check my Kujo Pi setup.
@@ -106,10 +112,10 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
 
    Doctor returns one copy-ready remediation for every missing dependency and reports the signed-registry and checksum state.
 
-4. Inspect the available capabilities:
+4. Inspect the task-oriented packs:
 
    ```text
-   Use kujo_tools to list the available Kujo integrations.
+   /kujo packs
    ```
 
    Run `/kujo active` at any time to see which optional integrations are active in the current session.
@@ -117,13 +123,13 @@ If you use standalone commands instead, set the relevant `*_BIN` variables liste
 5. Enable only what you need:
 
    ```text
-   Enable kujo_scout and kujo_scent for this session.
+   Enable the understand pack.
    ```
 
    You can also use the slash command:
 
    ```text
-   /kujo enable kujo_scout kujo_scent
+   /kujo enable understand
    ```
 
 6. Ask Pi to work with the enabled tools:
@@ -291,7 +297,7 @@ Enable it for the current session:
 /kujo enable kujo_scout
 ```
 
-Session startup intentionally removes optional Kujo tools from the active tool list.
+Optional tools are inactive in a new session. Once enabled, their activation is stored in that Pi session and restored after reload or session-tree navigation. Use `/kujo disable <tool|pack>` to turn them off persistently for the session.
 
 ### A service check fails
 

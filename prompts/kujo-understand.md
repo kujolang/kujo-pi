@@ -1,0 +1,1 @@
+Understand this repository with Kujo. Enable the `understand` pack, map only the structure relevant to my task, then prepare a dry-run context pack. Report evidence, generated artifact paths, and remaining unknowns. Do not broaden the task or change project files.
