@@ -13,6 +13,7 @@ const documents = [
   "docs/production-readiness-next.md",
   "docs/release-controls.md",
   "docs/service-profiles.md",
+  "docs/v1-roadmap.md",
 ];
 
 for (const document of documents) {

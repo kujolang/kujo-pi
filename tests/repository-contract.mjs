@@ -35,6 +35,8 @@ assert.equal((release.match(/working-directory: release\s+run: sha256sum --check
   "both publication jobs must verify checksums from the downloaded artifact directory");
 assert.doesNotMatch(release, /sha256sum --check release\/kujo-pi\.tgz\.sha256/);
 assert.match(ci, /ubuntu-latest, macos-latest, windows-latest/);
+assert.match(ci, /schedule:[\s\S]*cron:/);
+assert.match(ci, /pi-compatibility:[\s\S]*0\.84\.3[\s\S]*latest/);
 assert.match(ci, /actions\/dependency-review-action@[a-f0-9]{40}/);
 assert.match(release, /ubuntu-latest, macos-latest, windows-latest/);
 assert.match(release, /environment: npm-release/);
