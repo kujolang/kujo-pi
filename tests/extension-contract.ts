@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import kujoPi, { runStreamingCommand } from "../src/extension.ts";
+import { canonicalJson, sha256 } from "../src/contracts.mjs";
 
 const tools: Array<{ name: string; renderResult?: unknown }> = [];
 const commands: string[] = [];
@@ -136,6 +137,10 @@ const approvedCtx = { ...ctx, hasUI: true, ui: { confirm: async () => true } };
 const deniedCtx = { ...ctx, hasUI: true, ui: { confirm: async () => false } };
 const denied = await byName("kujo_shipcheck").execute("denied", { confirm: true }, undefined, undefined, deniedCtx);
 assert.equal(denied.details.status, "approval_required", "interactive approval cannot be bypassed with confirm=true");
+const dispatchCallsBeforeDenial = execCalls.filter(({ args }) => args[0] === "run" && args[2] === "demo").length;
+const deniedDispatch = await byName("kujo_dispatch_run").execute("denied-dispatch", { task: "fixture" }, undefined, undefined, deniedCtx);
+assert.equal(deniedDispatch.details.status, "approval_required");
+assert.equal(execCalls.filter(({ args }) => args[0] === "run" && args[2] === "demo").length, dispatchCallsBeforeDenial, "denied Dispatch approval must not execute");
 const fixtures: Array<[string, Record<string, unknown>]> = [
   ["kujo_scout", {}],
   ["kujo_scent", { task: "fixture" }],
@@ -153,6 +158,11 @@ for (const [name, params] of fixtures) {
   assert.equal(result.details.status, "success", `${name} fixture failed`);
   assert.equal(result.details.schemaVersion, "kujo.pi.result.v1", `${name} must return the versioned result contract`);
 }
+await byName("kujo_dispatch_run").execute("approval-binding", { task: "binding fixture" }, undefined, undefined, approvedCtx);
+const dispatchApproval = [...appendedEntries].reverse().find(({ type, data }) => type === "kujo-approval" && data.operation === "dispatch");
+const boundDispatchCall = [...execCalls].reverse().find(({ args }) => args[0] === "run" && args[2] === "demo");
+assert.ok(boundDispatchCall?.args.includes("--yes"), "approved Dispatch execution must carry the non-interactive confirmation flag");
+assert.equal(dispatchApproval?.data.argumentsDigest, sha256(canonicalJson(boundDispatchCall?.args)), "approval digest must bind the exact executed Dispatch arguments");
 const approvalEntry = appendedEntries.find(({ type }) => type === "kujo-approval");
 assert.equal(approvalEntry?.data.schemaVersion, "kujo.pi.approval.v1");
 assert.match(approvalEntry?.data.argumentsDigest || "", /^[a-f0-9]{64}$/);

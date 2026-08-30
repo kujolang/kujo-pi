@@ -15,6 +15,7 @@ const cwd = mkdtempSync(join(tmpdir(), "kujo-pi-operations-"));
 assert.deepEqual(operationArguments("review", {}, cwd), { binary: ["handoff"], entrypoint: ["--", "handoff"] });
 assert.deepEqual(operationArguments("scout", { quick: true }, cwd).binary, [cwd, "--quick"]);
 assert.deepEqual(operationArguments("dispatch", { task: "audit", confirm: true }, cwd).entrypoint.slice(-1), ["--yes"]);
+assert.deepEqual(operationArguments("dispatch", { task: "audit" }, cwd).entrypoint.slice(-1), ["--yes"], "the final approval-bound command must include its non-interactive confirmation flag");
 assert.throws(() => operationArguments("unknown", {}, cwd), /Unsupported Kujo operation/);
 
 console.log("integration operation contract validation passed");

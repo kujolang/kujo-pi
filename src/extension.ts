@@ -382,10 +382,6 @@ export default function kujoPi(pi: ExtensionAPI) {
           if (requiresApproval && !approved) {
             return toolResult({ ok: false, status: "approval_required", message: "No approval was granted." }, descriptor.operationId);
           }
-          if (approved) {
-            const confirmIndex = args.indexOf("--yes");
-            if (confirmIndex === -1 && operation === "dispatch") args.push("--yes");
-          }
           const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate);
           recordReceipt(pi, operation, cwd, result, descriptor);
           return toolResult(result, descriptor.operationId);

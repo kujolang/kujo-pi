@@ -40,7 +40,7 @@ export function operationArguments(operation, params, cwd) {
     case "mcp": return { binary: [], entrypoint: ["--interpreter", "make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")] };
     case "rag": return { binary: [], entrypoint: ["--interpreter", "query", "--question", params.question, ...(params.namespace ? ["--namespace", params.namespace] : [])] };
     case "agents": return { binary: [], entrypoint: ["--interpreter"] };
-    case "dispatch": return { binary: [], entrypoint: ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), ...(params.confirm ? ["--yes"] : [])] };
+    case "dispatch": return { binary: [], entrypoint: ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), "--yes"] };
     default: throw new Error(`Unsupported Kujo operation: ${operation}`);
   }
 }
