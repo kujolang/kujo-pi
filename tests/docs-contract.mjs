@@ -8,11 +8,14 @@ const documents = [
   "docs/enterprise-roadmap.md",
   "docs/capability-examples.md",
   "docs/contracts.md",
+  "docs/compatibility.md",
   "docs/integration-registry.md",
   "docs/pi-onboarding.md",
+  "docs/migration-v1.md",
   "docs/production-readiness-next.md",
   "docs/release-controls.md",
   "docs/service-profiles.md",
+  "docs/support.md",
   "docs/v1-roadmap.md",
 ];
 

@@ -7,7 +7,7 @@
 
 An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewable bridge into the Kujo ecosystem.
 
-New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md). The path to a stable compatibility commitment is tracked in the [v1 readiness roadmap](docs/v1-roadmap.md).
+New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md). The [compatibility policy](docs/compatibility.md), [migration guide](docs/migration-v1.md), [support policy](docs/support.md), and [v1 readiness roadmap](docs/v1-roadmap.md) define the path to the stable line.
 For copy-ready examples for every capability, see [Capability examples](docs/capability-examples.md).
 
 To route Pi model requests through the local Watchdog observability proxy, see
@@ -26,7 +26,7 @@ The default test suite is offline. It covers supported Node versions, the packed
 Install the current stable release from npm:
 
 ```bash
-pi install npm:@kujolang/kujo-pi@0.3.2
+pi install npm:@kujolang/kujo-pi
 ```
 
 Alternatively, install directly from GitHub. Pin a reviewed full commit for team and CI use:

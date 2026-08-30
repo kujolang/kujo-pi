@@ -6,7 +6,7 @@ It does not replace Pi, install the Kujo runtime, start background daemons, or c
 
 ## Is it usable today?
 
-Yes, within its documented client-integration boundary. The GitHub installation works today. npm publication is a separate distribution step and is not required for local or team use.
+Yes, within its documented client-integration boundary. Stable releases are published on npm with provenance and matching GitHub release evidence.
 
 Kujo Pi is a thin integration layer. It is not a guarantee that every Kujo component is installed, configured, or compatible with every organization. Use `kujo_doctor` to inspect the current environment.
 
@@ -40,7 +40,7 @@ Optional tools stay inactive until you enable them. Pi must also report the open
 Install the published release:
 
 ```bash
-pi install npm:@kujolang/kujo-pi@0.3.2
+pi install npm:@kujolang/kujo-pi
 ```
 
 The package currently requires Node.js 22.19 or newer.
@@ -325,5 +325,6 @@ To exercise the local ecosystem adapter matrix, also set `KUJO_PI_ECOSYSTEM_ROOT
 
 - Read the [Kujo Pi README](../README.md) for the complete capability and environment reference.
 - Read the [service profiles](service-profiles.md) before connecting Watchdog or Leash.
-- Read the [enterprise roadmap](enterprise-roadmap.md) for planned improvements and release status.
+- Read the [compatibility policy](compatibility.md), [v1 migration guide](migration-v1.md), and [support policy](support.md) before adopting the stable 1.x line.
+- Read the [v1 readiness roadmap](v1-roadmap.md) for the remaining stable-release gates.
 - Browse the canonical Kujo repositories linked in the README when you need runtime-specific documentation.
