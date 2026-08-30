@@ -1,13 +1,13 @@
 # Kujo Pi
 
-[![Version](https://img.shields.io/badge/version-0.3.2-black)](https://github.com/kujolang/kujo-pi)
+[![Version](https://img.shields.io/badge/version-1.0.0-black)](https://github.com/kujolang/kujo-pi/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![built with Kujo](https://img.shields.io/badge/built%20with-Kujo-white.svg)](https://github.com/kujolang/kujo)
 [![CI](https://github.com/kujolang/kujo-pi/actions/workflows/ci.yml/badge.svg)](https://github.com/kujolang/kujo-pi/actions)
 
 An opt-in [Pi](https://pi.dev/) package that gives developers a quiet, reviewable bridge into the Kujo ecosystem.
 
-New to Kujo Pi? Start with the [Pi onboarding guide](docs/pi-onboarding.md). The [compatibility policy](docs/compatibility.md), [migration guide](docs/migration-v1.md), [support policy](docs/support.md), [changelog](CHANGELOG.md), and [v1 readiness roadmap](docs/v1-roadmap.md) define the path to the stable line.
+Kujo Pi 1.0 is the stable line. New users should start with the [Pi onboarding guide](docs/pi-onboarding.md). The [compatibility policy](docs/compatibility.md), [migration guide](docs/migration-v1.md), [support policy](docs/support.md), [changelog](CHANGELOG.md), and [v1 release standard](docs/v1-roadmap.md) define its guarantees.
 For copy-ready examples for every capability, see [Capability examples](docs/capability-examples.md).
 
 To route Pi model requests through the local Watchdog observability proxy, see
@@ -208,9 +208,7 @@ npm test
 
 The test suite is offline and validates the package manifest, TypeScript extension contract, source layout, documentation links, path containment, trusted entrypoint selection, approval and project-trust gates, output bounds, network timeouts, and release workflow.
 
-The prioritized hardening and expansion backlog is documented in [docs/enterprise-roadmap.md](docs/enterprise-roadmap.md).
-
-The next production-readiness work list is in [docs/production-readiness-next.md](docs/production-readiness-next.md).
+Post-1.0 hardening and expansion priorities are documented in the [roadmap](docs/enterprise-roadmap.md). The evidence required for a production release is documented in the [production-readiness standard](docs/production-readiness.md).
 
 Recommended local and remote service profiles are documented in [docs/service-profiles.md](docs/service-profiles.md). The Kujo CLI and service checks are available with `KUJO_PI_LIVE=1 npm run test:live`; add `KUJO_PI_ECOSYSTEM_ROOT=/path/to/kujo-repos` to exercise the full local adapter matrix. Live checks never run in the default offline test suite.
 

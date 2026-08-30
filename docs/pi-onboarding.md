@@ -6,7 +6,7 @@ It does not replace Pi, install the Kujo runtime, start background daemons, or c
 
 ## Is it usable today?
 
-Yes, within its documented client-integration boundary. Stable releases are published on npm with provenance and matching GitHub release evidence.
+Yes. Kujo Pi 1.0 is the stable line within its documented client-integration boundary. Stable releases are published on npm with provenance and matching GitHub release evidence.
 
 Kujo Pi is a thin integration layer. It is not a guarantee that every Kujo component is installed, configured, or compatible with every organization. Use `kujo_doctor` to inspect the current environment.
 
@@ -326,5 +326,5 @@ To exercise the local ecosystem adapter matrix, also set `KUJO_PI_ECOSYSTEM_ROOT
 - Read the [Kujo Pi README](../README.md) for the complete capability and environment reference.
 - Read the [service profiles](service-profiles.md) before connecting Watchdog or Leash.
 - Read the [compatibility policy](compatibility.md), [v1 migration guide](migration-v1.md), and [support policy](support.md) before adopting the stable 1.x line.
-- Read the [v1 readiness roadmap](v1-roadmap.md) for the remaining stable-release gates.
+- Read the [v1 release standard](v1-roadmap.md) for the stable compatibility and safety guarantees.
 - Browse the canonical Kujo repositories linked in the README when you need runtime-specific documentation.

@@ -13,7 +13,7 @@ const documents = [
   "docs/integration-registry.md",
   "docs/pi-onboarding.md",
   "docs/migration-v1.md",
-  "docs/production-readiness-next.md",
+  "docs/production-readiness.md",
   "docs/release-controls.md",
   "docs/service-profiles.md",
   "docs/support.md",

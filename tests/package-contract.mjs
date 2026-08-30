@@ -25,7 +25,7 @@ assert.ok(files.includes("schemas/receipt-v1.schema.json"));
 assert.ok(files.includes("schemas/approval-v1.schema.json"));
 assert.ok(files.includes("schemas/integration-registry-v1.schema.json"));
 assert.ok(files.includes("docs/enterprise-roadmap.md"));
-assert.ok(files.includes("docs/production-readiness-next.md"));
+assert.ok(files.includes("docs/production-readiness.md"));
 assert.ok(files.includes("docs/v1-roadmap.md"));
 assert.ok(files.includes("docs/v1-acceptance.md"));
 for (const forbidden of ["tests/", ".github/", ".loop-engineering/", "node_modules/"]) {

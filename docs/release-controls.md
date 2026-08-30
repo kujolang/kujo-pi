@@ -1,8 +1,8 @@
 # Release controls
 
-The repository release workflow is ready for protected npm and GitHub publication. It verifies the exact tag on Linux, macOS, and Windows with Node 22 and 24, builds one tarball, generates a checksum and CycloneDX SBOM, creates GitHub build provenance, publishes that exact tarball to npm, and attaches all evidence to the GitHub release.
+The repository uses protected npm and GitHub publication. The workflow verifies the exact tag on Linux, macOS, and Windows with Node 22 and 24, builds one tarball, generates a checksum and CycloneDX SBOM, creates GitHub build provenance, publishes that exact tarball to npm, and attaches all evidence to the GitHub release.
 
-Before creating the first version tag, configure these external controls.
+These external controls must remain enabled for every stable release.
 
 ## Dependency graph
 
@@ -30,7 +30,7 @@ Create a repository ruleset for `refs/tags/v*.*.*` that:
 
 Configure `@kujolang/kujo-pi` to trust the `kujolang/kujo-pi` repository and `.github/workflows/release.yml`. The workflow uses GitHub OIDC and does not require a long-lived npm token.
 
-## Final release rehearsal
+## Stable release procedure
 
 1. Confirm the dependency graph is enabled and dependency review passes on a pull request.
 2. Confirm both GitHub environments have the intended reviewers.
@@ -41,4 +41,6 @@ Configure `@kujolang/kujo-pi` to trust the `kujolang/kujo-pi` repository and `.g
 7. Create the protected version tag.
 8. Approve the protected environments.
 9. Verify the npm provenance, GitHub attestation, SBOM, checksum, tag, and package version all describe the same artifact.
-10. Install the published package in a fresh Pi profile and run `kujo_doctor` before promotion.
+10. Install the published package by exact version in a fresh Pi profile and run `kujo_doctor` before announcing it.
+
+See the [production-readiness standard](production-readiness.md) for the evidence required to call a release production-ready.

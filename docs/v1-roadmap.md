@@ -1,55 +1,44 @@
-# Kujo Pi v1 readiness
+# Kujo Pi v1 release standard
 
-Kujo Pi reaches 1.0 when a Pi developer can install it, understand it, use a focused Kujo workflow, and recover from failure without repository-specific knowledge. Version 1.0 is a compatibility and product-quality commitment, not a count of bundled tools.
+Kujo Pi 1.0 is the stable compatibility and product-quality line. It gives Pi developers a predictable way to install Kujo Pi, understand its boundaries, enable a focused workflow, and recover from missing dependencies without repository-specific knowledge.
 
-## Release gates
+## Stable guarantees
 
 ### First use
 
-- A fresh Pi profile can install `@kujolang/kujo-pi` by package name and load it without warnings.
-- `/kujo setup` reports trust, signed-registry health, available integrations, and one useful next action.
-- `/kujo packs` explains task-oriented packs; optional tools stay inactive until enabled.
-- Enabled packs survive session reload and session-tree navigation.
+- A fresh Pi profile installs `@kujolang/kujo-pi` by package name and loads it without manual state edits.
+- `/kujo setup` reports signed-registry health, available integrations, and one useful next action.
+- `/kujo packs` explains task-oriented packs while optional tools remain inactive until enabled.
+- Enabled packs restore with their persisted Pi session; a new session starts with the quiet core set.
 - `kujo_doctor` provides a concrete remediation for every required dependency or invalid policy.
 
-### Stable capability contract
+### Capability contract
 
-- Every exposed tool is declared once in `src/capabilities.mjs` with its pack, default state, approval policy, side effect, and model-facing prompt.
-- Capability names, result schemas, approval schemas, and receipt schemas remain backward compatible throughout the 1.x line.
-- Integrations are discovered through the signed registry or explicit overrides; consumers do not need a Kujo monorepo checkout.
+- Every exposed tool is declared in `src/capabilities.mjs` with its pack, default state, approval policy, side effect, and model guidance.
+- Capability names, task-pack names, result schemas, approval schemas, receipt schemas, commands, and documented environment variables remain backward compatible throughout 1.x.
+- Integrations are discovered through the signed registry or explicit absolute overrides.
 - New ecosystem tools enter through the capability contract and a user-centered pack, not an unbounded default tool list.
 
 ### Compatibility and resilience
 
-- CI passes on macOS, Linux, and Windows with supported Node versions.
-- Weekly canaries pass against the minimum supported and latest Pi host releases.
+- CI covers macOS, Linux, and Windows with supported Node versions.
+- Scheduled canaries cover the minimum supported and newest published Pi host releases.
 - Cancellation, timeout, missing dependency, invalid configuration, unavailable service, and session recovery paths have deterministic tests.
-- Startup and core read-only operations stay within the documented performance budgets.
+- Startup and core read-only operations stay within documented performance budgets.
 
 ### Safety and privacy
 
 - Project mutations, workflow execution, and service writes require project trust and explicit approval where declared.
-- Telemetry remains opt-in, metadata-only by default, locally spooled, bounded, and redacted.
-- Network integrations enforce configured origins, reject redirects, bound responses, and never expose secrets in results or receipts.
+- Telemetry is opt-in, metadata-only by default, locally spooled, bounded, and redacted.
+- Network integrations enforce configured origins, reject redirects, bound responses, and exclude secrets from results and receipts.
 - Release workflows use immutable actions, trusted npm publishing, provenance, checksums, SBOMs, protected environments, and protected tags.
 
-### Release acceptance
+## 1.0 acceptance
 
-- `npm test`, type checking, package contents, the host harness, and a fresh-profile smoke test pass from the exact release tarball.
-- The package version, Git tag, GitHub release, npm version, provenance, and dist-tag agree.
-- The 0.9 release candidate receives external Pi-developer feedback with no unresolved release blocker.
-- The v1 compatibility policy, migration notes, support policy, and known blind spots are published.
-
-## Delivery sequence
-
-1. **0.4 — Foundation:** release identity guard, current dependencies, Pi compatibility canaries, capability manifest, packs, setup UX, and persisted activation.
-2. **0.5 — Universal integrations:** registry-driven command contracts, consistent structured results, useful per-capability rendering, and actionable doctor output.
-3. **0.6 — Pi-native workflows:** compact prompts for understand, review, ship, orchestrate, extend, and observe tasks with clear approval boundaries.
-4. **0.7 — Reliability:** recovery, offline behavior, retry policy, telemetry spool hardening, performance budgets, and security regression coverage.
-5. **0.8 — Adoption:** fresh-profile installer checks, upgrade/migration tests, example repositories, short demos, and maintainer feedback.
-6. **0.9 — Freeze:** API and schema freeze, compatibility audit, documentation freeze, release candidate, and external acceptance.
-7. **1.0 — Stable:** publish only after every release gate above is evidenced from the exact signed tarball.
+Version 1.0.0 passed the repository gate, supported-platform matrix, minimum/latest Pi canaries, exact-package fresh-profile test, release-artifact verification, npm signature and provenance verification, and two-distribution VM acceptance. The project owner accepted `1.0.0-rc.1` for stable release on 2026-08-30. The detailed record is in [v1 acceptance](v1-acceptance.md).
 
 ## Product boundary
 
-Kujo Pi should make Kujo capabilities feel native inside Pi. It should not embed every Kujo implementation, start background services automatically, or turn Pi into a monolithic Kujo distribution. The plugin stays small; signed integrations remain independently installable and useful; task packs provide the coherent experience.
+Kujo Pi makes Kujo capabilities feel native inside Pi. It does not embed every Kujo implementation, silently install dependencies, start background services, or turn Pi into a monolithic Kujo distribution. The package stays small, local-first, and quiet by default; signed integrations remain independently installable and useful.
+
+Future compatible work belongs in the [post-1.0 roadmap](enterprise-roadmap.md). Release evidence remains governed by the [production-readiness standard](production-readiness.md).
