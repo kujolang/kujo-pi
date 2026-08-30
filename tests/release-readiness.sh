@@ -24,6 +24,7 @@ node tests/service-contract.mjs
 node tests/telemetry-contract.mjs
 npm run test:extension
 node tests/pi-host-contract.mjs
+node tests/fresh-profile-contract.mjs
 node tests/performance-contract.mjs
 node tests/package-contract.mjs
 node tests/release-artifact-contract.mjs

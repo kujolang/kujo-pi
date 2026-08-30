@@ -42,6 +42,7 @@
     "test:extension": "tsx tests/extension-contract.ts",
     "test:live": "node tests/live-smoke.mjs",
     "test:host": "node tests/pi-host-contract.mjs",
+    "test:fresh-profile": "node tests/fresh-profile-contract.mjs",
     "test:performance": "node tests/performance-contract.mjs",
     "release:artifacts": "node scripts/build-release-artifacts.mjs",
     "typecheck": "tsc --noEmit",
