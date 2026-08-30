@@ -1,13 +1,15 @@
 {
   "name": "@kujolang/kujo-pi",
   "version": "0.4.0-next.0",
-  "description": "Opt-in Pi package for Kujo skills, repository intelligence, and review artifacts.",
+  "description": "Opt-in Kujo repository intelligence, reviews, release checks, workflows, and telemetry for Pi.",
   "license": "MIT",
   "keywords": [
     "pi-package",
     "kujo",
     "agent-skills",
-    "coding-agent"
+    "coding-agent",
+    "developer-tools",
+    "observability"
   ],
   "repository": {
     "type": "git",
@@ -26,6 +28,7 @@
     "integrations",
     "schemas",
     "README.md",
+    "CHANGELOG.md",
     "SECURITY.md",
     "LICENSE",
     "docs"

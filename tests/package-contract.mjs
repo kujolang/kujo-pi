@@ -5,6 +5,7 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const result = JSON.parse(execFileSync(npmCommand, ["pack", "--dry-run", "--json"], { encoding: "utf8", shell: process.platform === "win32" }));
 const files = result[0].files.map(({ path }) => path);
 assert.ok(files.includes("extensions/kujo.ts"));
+assert.ok(files.includes("CHANGELOG.md"));
 assert.ok(files.includes("src/core.mjs"));
 assert.ok(files.includes("src/extension.ts"));
 assert.ok(files.includes("src/telemetry.mjs"));
@@ -26,6 +27,7 @@ assert.ok(files.includes("schemas/integration-registry-v1.schema.json"));
 assert.ok(files.includes("docs/enterprise-roadmap.md"));
 assert.ok(files.includes("docs/production-readiness-next.md"));
 assert.ok(files.includes("docs/v1-roadmap.md"));
+assert.ok(files.includes("docs/v1-acceptance.md"));
 for (const forbidden of ["tests/", ".github/", ".loop-engineering/", "node_modules/"]) {
   assert.equal(files.some((path) => path.startsWith(forbidden)), false, `package contains ${forbidden}`);
 }

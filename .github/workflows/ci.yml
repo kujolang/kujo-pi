@@ -74,3 +74,4 @@ jobs:
           npm run typecheck
           npm run test:extension
           npm run test:host
+          npm run test:fresh-profile

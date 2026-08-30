@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 
 const documents = [
   "README.md",
+  "CHANGELOG.md",
   "SECURITY.md",
   "docs/enterprise-roadmap.md",
   "docs/capability-examples.md",
@@ -17,6 +18,7 @@ const documents = [
   "docs/service-profiles.md",
   "docs/support.md",
   "docs/v1-roadmap.md",
+  "docs/v1-acceptance.md",
 ];
 
 for (const document of documents) {
