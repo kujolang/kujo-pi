@@ -2,7 +2,7 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
-## 1.0.0-rc.1 - 2026-08-30
+## 1.0.0 - 2026-08-30
 
 ### Added
 
@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/). Release dates u
 - Pi-native task prompts and compact result rendering.
 - A stable capability manifest and centralized integration command contracts.
 - Fresh-profile, minimum/latest Pi, recovery, privacy, performance, and release-artifact gates.
+- Verified npm provenance and cross-platform acceptance on Linux, macOS, and Windows.
 
 ### Changed
 
@@ -18,6 +19,7 @@ This project follows [Semantic Versioning](https://semver.org/). Release dates u
 - Doctor and setup give direct remediation for unavailable integrations.
 - Dispatch approval now binds the exact arguments that execute.
 - Telemetry spool initialization now supports concurrent Pi sessions safely.
+- The 1.x capability, result, approval, receipt, command, and environment contracts are now stable.
 
 ### Compatibility
 

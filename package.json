@@ -1,6 +1,6 @@
 {
   "name": "@kujolang/kujo-pi",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
   "description": "Opt-in Kujo repository intelligence, reviews, release checks, workflows, and telemetry for Pi.",
   "license": "MIT",
   "keywords": [
