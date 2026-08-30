@@ -23,13 +23,13 @@ The default test suite is offline. It covers supported Node versions, the packed
 
 ## Install
 
-The package is not published to npm yet. After the first registry release, install the released version:
+Install the current stable release from npm:
 
 ```bash
-pi install npm:@kujolang/kujo-pi@<version>
+pi install npm:@kujolang/kujo-pi@0.3.2
 ```
 
-Install directly from GitHub today. Pin a reviewed full commit for team and CI use:
+Alternatively, install directly from GitHub. Pin a reviewed full commit for team and CI use:
 
 ```bash
 pi install -l git:github.com/kujolang/kujo-pi@<full-commit-sha>

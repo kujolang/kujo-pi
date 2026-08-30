@@ -35,7 +35,17 @@ Optional tools stay inactive until you enable them. Pi must also report the open
 
 ## Install
 
-### Recommended today: pinned project-local Git install
+### Recommended: stable npm release
+
+Install the published release:
+
+```bash
+pi install npm:@kujolang/kujo-pi@0.3.2
+```
+
+The package currently requires Node.js 22.19 or newer.
+
+### Alternative: pinned project-local Git install
 
 Run this from the repository where you use Pi:
 
@@ -50,16 +60,6 @@ You can install globally instead:
 ```bash
 pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
-
-### After npm publication
-
-The versioned npm install will be:
-
-```bash
-pi install npm:@kujolang/kujo-pi@<version>
-```
-
-The package currently requires Node.js 22.19 or newer when running its JavaScript extension and development checks.
 
 ## Prerequisites
 
