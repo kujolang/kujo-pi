@@ -15,6 +15,8 @@ grep -Eq 'registerTool|kujo_scout|kujo_scent|kujo_review_changes' src/extension.
 grep -Eq 'sameOriginUrl|boundedResponse|realpathSync' src/core.mjs
 node tests/core-contract.mjs
 node tests/capabilities-contract.mjs
+node tests/presentation-contract.mjs
+node tests/operations-contract.mjs
 node scripts/check-version-state.mjs
 node tests/schema-contract.mjs
 node tests/registry-contract.mjs

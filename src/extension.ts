@@ -7,6 +7,8 @@ import { CAPABILITIES, CAPABILITY_PACKS, OPTIONAL_TOOLS, capabilityByTool, capab
 import { boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, requestSignal, sameOriginUrl, versionFromOutput, workspacePath } from "./core.mjs";
 import { APPROVAL_SCHEMA_VERSION, RECEIPT_SCHEMA_VERSION, createOperationDescriptor, digestArtifacts, sha256, versionedResult, workspaceDigest } from "./contracts.mjs";
 import { findExecutable, inspectIntegrations, integrationById } from "./registry.mjs";
+import { presentResult } from "./presentation.mjs";
+import { operationArguments, operationContract } from "./operations.mjs";
 import { PiTelemetryBridge } from "./telemetry.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
@@ -89,13 +91,9 @@ function toolResult(value: unknown, operationId: string | null = null) {
 }
 
 function renderResult(result: any, options: any, theme: any) {
-  const details = result.details || {};
-  const icon = details.ok ? "✓" : "✗";
-  const status = details.status || (details.ok ? "success" : "failed");
-  const summary = `${icon} ${details.label || "Kujo"} · ${status}`;
-  if (!options.expanded) return new Text(theme.fg(details.ok ? "success" : "error", summary), 0, 0);
-  const output = details.output || details.message || "No additional output.";
-  return new Text(`${theme.fg(details.ok ? "success" : "error", summary)}\n${theme.fg("toolOutput", output)}`, 0, 0);
+  const view = presentResult(result.details || {});
+  if (!options.expanded) return new Text(theme.fg(view.tone, view.summary), 0, 0);
+  return new Text(`${theme.fg(view.tone, view.summary)}\n${theme.fg("toolOutput", view.output)}`, 0, 0);
 }
 
 function recordReceipt(pi: ExtensionAPI, operation: string, workspace: string, result: any, descriptor?: any) {
@@ -183,10 +181,10 @@ function commandFor(operation: string, params: any, cwd: string, registry: Retur
   const requiredEntry = (name: string) => configuredEntrypoint(entry(name), name);
   const cli = (name: string, fallback: string, args: string[]) => [entry(name) || fallback, args] as [string, string[]];
   const kujo = findExecutable(entry("KUJO_BIN") || "kujo") || entry("KUJO_BIN") || "kujo";
-  const resolved = (id: string, binaryEnv: string, entryEnv: string | null, binaryArgs: string[], entryArgs: string[]) => {
+  const resolved = (id: string, binaryEnv: string, entryEnv: string, binaryArgs: string[], entryArgs: string[]) => {
     const overrideBinary = entry(binaryEnv);
     if (overrideBinary) return [overrideBinary, binaryArgs] as [string, string[]];
-    if (entryEnv && entry(entryEnv)) return [kujo, ["run", requiredEntry(entryEnv), ...entryArgs]] as [string, string[]];
+    if (entry(entryEnv)) return [kujo, ["run", requiredEntry(entryEnv), ...entryArgs]] as [string, string[]];
     const target = integrationTarget(registry, id);
     if (target?.mode === "binary") return [target.path, binaryArgs] as [string, string[]];
     if (target?.mode === "entrypoint") return [kujo, ["run", target.path, ...entryArgs]] as [string, string[]];
@@ -194,22 +192,17 @@ function commandFor(operation: string, params: any, cwd: string, registry: Retur
     if (declared?.command && ["patchbrief", "changebucket", "shipcheck", "runledger"].includes(id)) {
       return [declared.command, binaryArgs] as [string, string[]];
     }
-    if (entryEnv) throw new Error(`No verified ${id} integration found; set ${binaryEnv}, ${entryEnv}, or KUJO_ECOSYSTEM_ROOT`);
-    return [id, binaryArgs] as [string, string[]];
+    throw new Error(`No verified ${id} integration found; set ${binaryEnv}, ${entryEnv}, or KUJO_ECOSYSTEM_ROOT`);
   };
   switch (operation) {
     case "status": return cli("KUJO_BIN", "kujo", ["--version"]);
     case "check": return cli("KUJO_BIN", "kujo", ["check", workspacePath(cwd, params.file)]);
-    case "scout": return resolved("scout", "KUJO_SCOUT_BIN", "KUJO_SCOUT_ENTRY", [workspacePath(cwd, params.path || "."), ...(params.quick ? ["--quick"] : [])], ["--", workspacePath(cwd, params.path || "."), ...(params.quick ? ["--quick"] : [])]);
-    case "scent": return resolved("scent", "KUJO_SCENT_BIN", "KUJO_SCENT_ENTRY", ["pack", workspacePath(cwd, params.path || "."), "--task", params.task, "--dry-run", "--json"], ["--", "pack", workspacePath(cwd, params.path || "."), "--task", params.task, "--dry-run", "--json"]);
-    case "review": return resolved("patchbrief", "KUJO_PATCHBRIEF_BIN", "KUJO_PATCHBRIEF_ENTRY", ["handoff"], ["--", "handoff"]);
-    case "changebucket": return resolved("changebucket", "KUJO_CHANGEBUCKET_BIN", "KUJO_CHANGEBUCKET_ENTRY", ["report", "--format", "json"], ["--", "report", "--format", "json"]);
-    case "shipcheck": return resolved("shipcheck", "KUJO_SHIPCHECK_BIN", "KUJO_SHIPCHECK_ENTRY", ["check", "--format", "json"], ["--", "check", "--format", "json"]);
-    case "mcp": return resolved("mcp", "KUJO_MCP_BIN", "KUJO_MCP_ENTRY", [], ["--interpreter", "make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")]);
-    case "rag": return resolved("rag", "KUJO_RAG_BIN", "KUJO_RAG_ENTRY", [], ["--interpreter", "query", "--question", params.question, ...(params.namespace ? ["--namespace", params.namespace] : [])]);
-    case "agents": return resolved("agents", "KUJO_AGENTS_SMOKE_BIN", "KUJO_AGENTS_SMOKE_ENTRY", [], ["--interpreter"]);
-    case "dispatch": return resolved("dispatch", "KUJO_DISPATCH_BIN", "KUJO_DISPATCH_ENTRY", [], ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), ...(params.confirm ? ["--yes"] : [])]);
-    default: throw new Error(`Unsupported Kujo operation: ${operation}`);
+    default: {
+      const contract = operationContract(operation);
+      if (!contract) throw new Error(`Unsupported Kujo operation: ${operation}`);
+      const args = operationArguments(operation, params, cwd);
+      return resolved(contract.integration, contract.binaryEnvironment, contract.entrypointEnvironment, args.binary, args.entrypoint);
+    }
   }
 }
 

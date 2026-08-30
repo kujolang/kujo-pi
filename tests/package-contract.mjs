@@ -11,6 +11,8 @@ assert.ok(files.includes("src/telemetry.mjs"));
 assert.ok(files.includes("src/contracts.mjs"));
 assert.ok(files.includes("src/registry.mjs"));
 assert.ok(files.includes("src/capabilities.mjs"));
+assert.ok(files.includes("src/presentation.mjs"));
+assert.ok(files.includes("src/operations.mjs"));
 for (const prompt of ["understand", "review", "ship", "orchestrate", "extend", "observe"]) {
   assert.ok(files.includes(`prompts/kujo-${prompt}.md`), `missing packaged ${prompt} task prompt`);
 }
