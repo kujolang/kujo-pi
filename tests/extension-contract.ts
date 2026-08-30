@@ -70,6 +70,11 @@ await eventHandlers.get("session_tree")?.({}, {
   sessionManager: { getBranch: () => [{ type: "custom", customType: "kujo-tools-state", data: stateEntry?.data }] },
 });
 assert.ok(activeTools.includes("kujo_scout") && activeTools.includes("kujo_scent"), "session tree navigation must restore the latest activation state");
+activeTools = ["read", "kujo_scout"];
+await eventHandlers.get("session_tree")?.({}, {
+  sessionManager: { getBranch: () => [{ type: "custom", customType: "kujo-tools-state", data: { schemaVersion: "kujo.pi.tools-state.v1", active: ["removed_v0_tool", 42] } }] },
+});
+assert.deepEqual(activeTools, ["read"], "unknown or malformed legacy activation entries must recover to the quiet core set");
 await commandDefinitions.get("kujo").handler("packs", commandCtx);
 assert.match(notifications.at(-1) || "", /understand:/);
 const completions = await commandDefinitions.get("kujo").getArgumentCompletions("enable und");

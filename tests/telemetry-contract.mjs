@@ -37,7 +37,16 @@ const bridge = new PiTelemetryBridge({
 });
 
 const rawWorkspace = "/private/work/acme-secret-repository";
-await bridge.startSession({ sessionId: "session-1", workspace: rawWorkspace, provider: "openai", model: "gpt-test", trusted: true });
+const concurrentBridge = new PiTelemetryBridge({
+  environment,
+  fetchImpl: async () => { throw new Error("Watchdog unavailable"); },
+});
+await Promise.all([
+  bridge.startSession({ sessionId: "session-1", workspace: rawWorkspace, provider: "openai", model: "gpt-test", trusted: true }),
+  concurrentBridge.startSession({ sessionId: "session-concurrent", workspace: rawWorkspace, trusted: true }),
+]);
+assert.equal(concurrentBridge.enabled, true, "concurrent Pi sessions must share spool initialization safely");
+assert.equal(bridge.projectId, concurrentBridge.projectId, "concurrent sessions must use the same durable project salt");
 await bridge.startRun();
 bridge.agentStart();
 clock += 10;
@@ -82,6 +91,7 @@ assert.equal((await bridge.spool.files()).length, 0, "successful replay should d
 assert.ok(delivered.length > 0);
 assert.ok(delivered.every(payload => payload.schema_version === TELEMETRY_SCHEMA_VERSION));
 await bridge.shutdown("quit");
+await concurrentBridge.shutdown("quit");
 
 const untrusted = new PiTelemetryBridge({ environment, fetchImpl: async () => ({ ok: true, status: 200, body: null }) });
 await untrusted.startSession({ sessionId: "session-2", workspace: rawWorkspace, trusted: false });

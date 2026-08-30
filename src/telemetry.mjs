@@ -99,8 +99,14 @@ class TelemetrySpool {
       this.salt = await readFile(saltPath);
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
-      this.salt = randomBytes(32);
-      await writeFile(saltPath, this.salt, { mode: 0o600, flag: "wx" });
+      const candidate = randomBytes(32);
+      try {
+        await writeFile(saltPath, candidate, { mode: 0o600, flag: "wx" });
+        this.salt = candidate;
+      } catch (writeError) {
+        if (!(writeError && typeof writeError === "object" && "code" in writeError && writeError.code === "EEXIST")) throw writeError;
+        this.salt = await readFile(saltPath);
+      }
     }
     this.initialized = true;
   }
