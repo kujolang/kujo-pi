@@ -1,21 +1,7 @@
 // @ts-check
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-
-export const OPTIONAL_TOOLS = [
-  "kujo_scout",
-  "kujo_scent",
-  "kujo_review_changes",
-  "kujo_changebucket",
-  "kujo_shipcheck",
-  "kujo_mcp_make",
-  "kujo_dispatch_run",
-  "kujo_agents_smoke",
-  "kujo_runledger",
-  "kujo_watchdog",
-  "kujo_leash_approval",
-  "kujo_rag_query",
-];
+export { OPTIONAL_TOOLS } from "./capabilities.mjs";
 
 /** @param {string} workspace @param {string} [candidate] */
 export function workspacePath(workspace, candidate = ".") {
