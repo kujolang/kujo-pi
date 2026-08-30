@@ -7,6 +7,7 @@ import kujoPi, { runStreamingCommand } from "../src/extension.ts";
 
 const tools: Array<{ name: string; renderResult?: unknown }> = [];
 const commands: string[] = [];
+const commandDefinitions = new Map<string, any>();
 const handlers: string[] = [];
 const eventHandlers = new Map<string, (...args: any[]) => any>();
 const execCalls: Array<{ command: string; args: string[] }> = [];
@@ -14,7 +15,7 @@ const appendedEntries: Array<{ type: string; data: any }> = [];
 let execMode: "success" | "missing" | "timeout" = "success";
 let activeTools = ["read"];
 const pi = {
-  registerCommand(name: string) { commands.push(name); },
+  registerCommand(name: string, definition: any) { commands.push(name); commandDefinitions.set(name, definition); },
   registerTool(tool: { name: string; renderResult?: unknown }) { tools.push(tool); },
   on(name: string, handler: (...args: any[]) => any) { handlers.push(name); eventHandlers.set(name, handler); },
   getActiveTools() { return [...activeTools]; },
@@ -39,7 +40,7 @@ for (const name of ["kujo_status", "kujo_scout", "kujo_runledger", "kujo_watchdo
 }
 assert.deepEqual(commands, ["kujo"]);
 assert.deepEqual(handlers, [
-  "session_start", "before_agent_start", "agent_start", "agent_end", "agent_settled", "turn_start", "turn_end",
+  "session_start", "session_tree", "before_agent_start", "agent_start", "agent_end", "agent_settled", "turn_start", "turn_end",
   "tool_execution_start", "tool_execution_end", "user_bash", "model_select", "before_provider_headers", "session_shutdown",
 ]);
 
@@ -49,9 +50,29 @@ await eventHandlers.get("session_start")?.({}, {
   ui: { setStatus() {} },
   model: undefined,
   isProjectTrusted: () => true,
-  sessionManager: { getSessionId: () => "session-fixture" },
+  sessionManager: { getSessionId: () => "session-fixture", getBranch: () => [] },
 });
 assert.deepEqual(activeTools, ["read"], "session startup must reset optional activation");
+
+const notifications: string[] = [];
+const commandCtx = {
+  cwd: mkdtempSync(join(tmpdir(), "kujo-pi-command-")),
+  isProjectTrusted: () => true,
+  ui: { notify(message: string) { notifications.push(message); } },
+};
+await commandDefinitions.get("kujo").handler("enable understand", commandCtx);
+assert.ok(activeTools.includes("kujo_scout") && activeTools.includes("kujo_scent"), "capability packs must enable their tools");
+const stateEntry = [...appendedEntries].reverse().find(({ type }) => type === "kujo-tools-state");
+assert.deepEqual(stateEntry?.data.active.sort(), ["kujo_scent", "kujo_scout"]);
+activeTools = ["read"];
+await eventHandlers.get("session_tree")?.({}, {
+  sessionManager: { getBranch: () => [{ type: "custom", customType: "kujo-tools-state", data: stateEntry?.data }] },
+});
+assert.ok(activeTools.includes("kujo_scout") && activeTools.includes("kujo_scent"), "session tree navigation must restore the latest activation state");
+await commandDefinitions.get("kujo").handler("packs", commandCtx);
+assert.match(notifications.at(-1) || "", /understand:/);
+const completions = await commandDefinitions.get("kujo").getArgumentCompletions("enable und");
+assert.ok(completions.some(({ label }: any) => label === "understand"), "slash command must complete capability packs");
 
 const byName = (name: string) => tools.find((tool) => tool.name === name) as any;
 const ctx = { cwd: mkdtempSync(join(tmpdir(), "kujo-pi-extension-")), hasUI: false, isProjectTrusted: () => true };
@@ -90,6 +111,9 @@ const untrustedDoctor = await byName("kujo_doctor").execute("untrusted-doctor", 
 assert.equal(untrustedDoctor.details.status, "project_untrusted");
 const untrustedEnable = await byName("kujo_tools").execute("enable", { enable: ["kujo_scout"] }, undefined, undefined, untrustedCtx);
 assert.equal(untrustedEnable.details.status, "project_untrusted");
+const enabledPack = await byName("kujo_tools").execute("enable-pack", { enable: ["review"] }, undefined, undefined, ctx);
+assert.deepEqual(enabledPack.details.enabled.sort(), ["kujo_changebucket", "kujo_review_changes"]);
+assert.equal(enabledPack.details.enabledPacks[0], "review");
 const approval = await byName("kujo_shipcheck").execute("5", {}, undefined, undefined, ctx);
 assert.equal(approval.details.status, "approval_required");
 const previousKujoBin = process.env.KUJO_BIN;

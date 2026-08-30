@@ -3,7 +3,8 @@ import { Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, requestSignal, sameOriginUrl, versionFromOutput, workspacePath } from "./core.mjs";
+import { CAPABILITIES, CAPABILITY_PACKS, OPTIONAL_TOOLS, capabilityByTool, capabilitySummaries, expandCapabilitySelection } from "./capabilities.mjs";
+import { boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, requestSignal, sameOriginUrl, versionFromOutput, workspacePath } from "./core.mjs";
 import { APPROVAL_SCHEMA_VERSION, RECEIPT_SCHEMA_VERSION, createOperationDescriptor, digestArtifacts, sha256, versionedResult, workspaceDigest } from "./contracts.mjs";
 import { findExecutable, inspectIntegrations, integrationById } from "./registry.mjs";
 import { PiTelemetryBridge } from "./telemetry.mjs";
@@ -240,20 +241,70 @@ export default function kujoPi(pi: ExtensionAPI) {
   } catch (error) {
     registryError = String(error);
   }
-  const allTools = ["kujo_doctor", "kujo_status", "kujo_check", ...OPTIONAL_TOOLS]
-    .filter((name, index, names) => names.indexOf(name) === index);
+  const allTools = CAPABILITIES.map(({ tool }) => tool);
+  const stateType = "kujo-tools-state";
+  const persistActiveTools = () => {
+    pi.appendEntry(stateType, {
+      schemaVersion: "kujo.pi.tools-state.v1",
+      active: pi.getActiveTools().filter((name) => OPTIONAL_TOOLS.includes(name)),
+    });
+  };
+  const restoreActiveTools = (ctx: any) => {
+    const entries = ctx.sessionManager?.getBranch?.() || [];
+    const saved = [...entries].reverse().find((entry: any) => entry.type === "custom" && entry.customType === stateType);
+    const restored = Array.isArray(saved?.data?.active)
+      ? saved.data.active.filter((name: unknown) => typeof name === "string" && OPTIONAL_TOOLS.includes(name))
+      : [];
+    const nonOptional = pi.getActiveTools().filter((name) => !OPTIONAL_TOOLS.includes(name));
+    pi.setActiveTools([...new Set([...nonOptional, ...restored])]);
+  };
+  const promptHints = (name: string) => {
+    const capability = capabilityByTool(name);
+    return capability ? {
+      promptSnippet: capability.prompt,
+      promptGuidelines: [
+        `${capability.label}: ${capability.sideEffect}.`,
+        capability.approval ? "Obtain explicit user approval before execution." : "Use only when it directly supports the user's request.",
+      ],
+    } : {};
+  };
 
   pi.registerCommand("kujo", {
     description: "List, enable, or disable Kujo capabilities",
+    getArgumentCompletions: (prefix) => {
+      const options = [
+        ["list", "List every capability"], ["packs", "List task-oriented packs"], ["active", "Show active tools"],
+        ["setup", "Check local integration readiness"], ["enable", "Enable a tool or pack"], ["disable", "Disable a tool or pack"],
+        ["init", "Create the local .kujo/pi directory"],
+      ];
+      const [action, partial = ""] = prefix.split(/\s+/, 2);
+      if (action === "enable" || action === "disable") {
+        return [...CAPABILITY_PACKS.map(({ id, description }) => ({ value: `${action} ${id}`, label: id, description })),
+          ...CAPABILITIES.map(({ tool, prompt }) => ({ value: `${action} ${tool}`, label: tool, description: prompt }))]
+          .filter(({ label }) => label.startsWith(partial));
+      }
+      return options.filter(([value]) => value.startsWith(prefix)).map(([value, description]) => ({ value, label: value, description }));
+    },
     handler: async (args, ctx) => {
       const requested = args.trim();
       if (!requested) {
-        ctx.ui.notify("Kujo tools are available. Use /kujo list or /kujo enable <tool>.", "info");
+        ctx.ui.notify("Kujo is ready. Use /kujo setup, /kujo packs, or /kujo enable <pack>.", "info");
         return;
       }
       const [action, ...names] = requested.split(/\s+/);
       if (action === "list") {
-        ctx.ui.notify(`Kujo tools: ${allTools.join(", ")}`, "info");
+        ctx.ui.notify(CAPABILITIES.map(({ tool, pack, defaultActive }) => `${tool} [${pack}; ${defaultActive ? "active" : "opt-in"}]`).join("\n"), "info");
+        return;
+      }
+      if (action === "packs") {
+        ctx.ui.notify(CAPABILITY_PACKS.map(({ id, description, tools }) => `${id}: ${description} (${tools.join(", ")})`).join("\n"), "info");
+        return;
+      }
+      if (action === "setup") {
+        const available = registry?.integrations.filter((integration: any) => integration.available).map((integration: any) => integration.id) || [];
+        const total = registry?.integrations.length || 0;
+        const next = available.length ? "/kujo packs, then /kujo enable <pack>" : "Install Kujo integrations or set KUJO_ECOSYSTEM_ROOT, then run /kujo setup again";
+        ctx.ui.notify(`Kujo setup: signed registry ${registry?.signatureVerified ? "verified" : "unavailable"}; ${available.length}/${total} local integrations ready. Next: ${next}.`, registry ? "info" : "warning");
         return;
       }
       if (action === "active") {
@@ -281,37 +332,42 @@ export default function kujoPi(pi: ExtensionAPI) {
           ctx.ui.notify("Trust this project in Pi before enabling optional Kujo tools.", "warning");
           return;
         }
-        const selected = names.filter((name) => allTools.includes(name));
-        const unknown = names.filter((name) => !allTools.includes(name));
+        const { tools: selected, packs, unknown } = expandCapabilitySelection(names);
         const active = new Set(pi.getActiveTools());
         for (const name of selected) action === "enable" ? active.add(name) : active.delete(name);
         pi.setActiveTools([...active]);
-        ctx.ui.notify(`${action}d ${selected.join(", ") || "no tools"}${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`, "info");
+        persistActiveTools();
+        const packText = packs.length ? ` pack${packs.length === 1 ? "" : "s"} ${packs.join(", ")};` : "";
+        ctx.ui.notify(`${action}d${packText} ${selected.join(", ") || "no tools"}${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`, "info");
         return;
       }
-      ctx.ui.notify("Usage: /kujo list | /kujo active | /kujo enable <tool> | /kujo disable <tool> | /kujo init", "warning");
+      ctx.ui.notify("Usage: /kujo setup | /kujo packs | /kujo list | /kujo active | /kujo enable <tool|pack> | /kujo disable <tool|pack> | /kujo init", "warning");
     },
   });
 
   pi.registerTool({
     name: "kujo_tools", label: "Kujo tools",
     description: "List Kujo Pi capabilities and enable optional integrations for this session.",
-    parameters: Type.Object({ enable: Type.Optional(Type.Array(shortText("Registered Kujo tool name"), { maxItems: 32, uniqueItems: true })) }),
+    promptSnippet: "Discover Kujo capabilities and enable a task-oriented pack when the user asks for it.",
+    promptGuidelines: ["Keep optional Kujo tools inactive until they directly support the user's request."],
+    parameters: Type.Object({ enable: Type.Optional(Type.Array(shortText("Registered Kujo tool name or capability pack"), { maxItems: 32, uniqueItems: true })) }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const all = allTools;
-      const unknown = (params.enable || []).filter((name: string) => !all.includes(name));
-      const enabled = (params.enable || []).filter((name: string) => all.includes(name));
+      const { tools: enabled, packs, unknown } = expandCapabilitySelection(params.enable || []);
       if (enabled.some((name: string) => OPTIONAL_TOOLS.includes(name)) && ctx.isProjectTrusted?.() !== true) {
         return toolResult({ ok: false, status: "project_untrusted", available: all, active: pi.getActiveTools(), enabled: [], optional: OPTIONAL_TOOLS, unknown, message: "Trust this project in Pi before enabling optional Kujo tools." });
       }
-      if (enabled.length) pi.setActiveTools([...new Set([...pi.getActiveTools(), ...enabled])]);
-      return toolResult({ available: all, active: pi.getActiveTools(), enabled, optional: OPTIONAL_TOOLS, unknown, note: "Optional tools are inactive until explicitly enabled." });
+      if (enabled.length) {
+        pi.setActiveTools([...new Set([...pi.getActiveTools(), ...enabled])]);
+        persistActiveTools();
+      }
+      return toolResult({ capabilities: capabilitySummaries(), packs: CAPABILITY_PACKS, available: all, active: pi.getActiveTools(), enabled, enabledPacks: packs, optional: OPTIONAL_TOOLS, unknown, note: "Optional tools are inactive until explicitly enabled." });
     },
   });
 
   const registerKujoCliTool = (name: string, label: string, description: string, parameters: any, operation: string, requiresApproval = false) => {
     pi.registerTool({
-      name, label, description, parameters,
+      name, label, description, parameters, ...promptHints(name),
       renderResult,
       async execute(_id, params: any, signal, onUpdate, ctx) {
         try {
@@ -348,7 +404,7 @@ export default function kujoPi(pi: ExtensionAPI) {
   };
 
   pi.registerTool({
-    name: "kujo_doctor", label: "Kujo doctor", description: "Inspect Kujo Pi configuration and local tool availability without running project workflows.",
+    name: "kujo_doctor", label: "Kujo doctor", description: "Inspect Kujo Pi configuration and local tool availability without running project workflows.", ...promptHints("kujo_doctor"),
     parameters: withWorkspace(Type.Object({})),
     async execute(_id, params, signal, _onUpdate, ctx) {
       const trustError = trustFailure(ctx);
@@ -446,7 +502,7 @@ export default function kujoPi(pi: ExtensionAPI) {
   registerKujoCliTool("kujo_dispatch_run", "Kujo Dispatch run", "Run a resumable, reviewable Dispatch workflow after explicit approval.", withWorkspace(Type.Object({ task: taskText("Task for the Dispatch workflow"), workflow: Type.Optional(shortText("Dispatch workflow name")), output: optionalWorkspacePath("Dispatch output directory inside the selected workspace"), confirm: Type.Optional(Type.Boolean()) })), "dispatch", true);
 
   pi.registerTool({
-    name: "kujo_runledger", label: "Kujo RunLedger", description: "Start or finish a local RunLedger receipt using the installed RunLedger CLI.",
+    name: "kujo_runledger", label: "Kujo RunLedger", description: "Start or finish a local RunLedger receipt using the installed RunLedger CLI.", ...promptHints("kujo_runledger"),
     parameters: withWorkspace(Type.Union([
       Type.Object({ action: Type.Literal("start"), task: Type.Optional(taskText("Task associated with the run")), provider: Type.Optional(shortText("Model provider")), model: Type.Optional(shortText("Model name")) }),
       Type.Object({ action: Type.Literal("finish"), runId: Type.String({ minLength: 1, maxLength: 96, pattern: "^[a-zA-Z0-9._-]+$" }), status: Type.Optional(shortText("Final run status")), verdict: Type.Optional(taskText("Final run verdict")) }),
@@ -472,7 +528,7 @@ export default function kujoPi(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
-    name: "kujo_watchdog", label: "Kujo Watchdog", description: "Read optional local Watchdog telemetry; network calls require an explicit configured URL.",
+    name: "kujo_watchdog", label: "Kujo Watchdog", description: "Read optional local Watchdog telemetry; network calls require an explicit configured URL.", ...promptHints("kujo_watchdog"),
     parameters: Type.Object({ path: Type.Optional(Type.String({ minLength: 1, maxLength: 2_048, pattern: "^/", description: "Absolute path on the configured Watchdog origin" })) }),
     renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
@@ -496,7 +552,7 @@ export default function kujoPi(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
-    name: "kujo_leash_approval", label: "Kujo Leash approval", description: "Send an explicit approval request to a configured local Leash daemon.",
+    name: "kujo_leash_approval", label: "Kujo Leash approval", description: "Send an explicit approval request to a configured local Leash daemon.", ...promptHints("kujo_leash_approval"),
     parameters: Type.Object({ event: Type.Record(Type.String({ minLength: 1, maxLength: 256 }), Type.Unknown()), confirm: Type.Optional(Type.Boolean()) }),
     renderResult,
     async execute(_id, params: any, signal, _onUpdate, ctx) {
@@ -524,8 +580,7 @@ export default function kujoPi(pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     ctx.ui.setStatus("kujo", "Kujo: opt-in tools available");
-    const active = pi.getActiveTools();
-    pi.setActiveTools(active.filter((name) => !OPTIONAL_TOOLS.includes(name)));
+    restoreActiveTools(ctx);
     await telemetry.startSession({
       sessionId: ctx.sessionManager.getSessionId(),
       workspace: ctx.cwd,
@@ -534,6 +589,8 @@ export default function kujoPi(pi: ExtensionAPI) {
       trusted: ctx.isProjectTrusted?.() === true,
     });
   });
+
+  pi.on("session_tree", (_event, ctx) => { restoreActiveTools(ctx); });
 
   pi.on("before_agent_start", async () => { await telemetry.startRun(); });
   pi.on("agent_start", () => { telemetry.agentStart(); });
