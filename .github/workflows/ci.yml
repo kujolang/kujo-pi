@@ -69,4 +69,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Install Pi compatibility target
         run: npm install --no-save --ignore-scripts @earendil-works/pi-coding-agent@${{ matrix.pi-version }} @earendil-works/pi-tui@${{ matrix.pi-version }}
-      - run: npm test
+      - name: Verify extension against Pi target
+        run: |
+          npm run typecheck
+          npm run test:extension
+          npm run test:host
