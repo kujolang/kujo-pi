@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PiTelemetryBridge, TELEMETRY_SCHEMA_VERSION, classifyCommand, telemetryConfig, toolSpanKind } from "../src/telemetry.mjs";
@@ -47,6 +48,7 @@ await Promise.all([
 ]);
 assert.equal(concurrentBridge.enabled, true, "concurrent Pi sessions must share spool initialization safely");
 assert.equal(bridge.projectId, concurrentBridge.projectId, "concurrent sessions must use the same durable project salt");
+assert.equal(bridge.spool.salt.length, 32, "published telemetry salts must always be complete");
 await bridge.startRun();
 bridge.agentStart();
 clock += 10;
@@ -96,6 +98,15 @@ await concurrentBridge.shutdown("quit");
 const untrusted = new PiTelemetryBridge({ environment, fetchImpl: async () => ({ ok: true, status: 200, body: null }) });
 await untrusted.startSession({ sessionId: "session-2", workspace: rawWorkspace, trusted: false });
 assert.equal(untrusted.enabled, false, "untrusted projects must not activate background telemetry");
+
+const invalidSaltRoot = await mkdtemp(join(tmpdir(), "kujo-pi-telemetry-invalid-salt-"));
+const endpointDirectory = createHash("sha256").update(environment.KUJO_WATCHDOG_URL).digest("hex").slice(0, 32);
+await mkdir(join(invalidSaltRoot, endpointDirectory), { recursive: true });
+await writeFile(join(invalidSaltRoot, endpointDirectory, "salt"), Buffer.alloc(0));
+const invalidSaltBridge = new PiTelemetryBridge({ environment: { ...environment, KUJO_PI_TELEMETRY_SPOOL_DIR: invalidSaltRoot } });
+await invalidSaltBridge.startSession({ sessionId: "session-invalid-salt", workspace: rawWorkspace, trusted: true });
+assert.equal(invalidSaltBridge.enabled, false, "an incomplete persisted salt must fail closed");
+assert.match(invalidSaltBridge.spool.lastError, /exactly 32 bytes/);
 
 const boundedRoot = await mkdtemp(join(tmpdir(), "kujo-pi-telemetry-bounded-"));
 const boundedBridge = new PiTelemetryBridge({

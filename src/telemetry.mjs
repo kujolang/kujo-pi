@@ -1,6 +1,6 @@
 // @ts-check
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { open, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { link, open, readFile, readdir, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { sameOriginUrl } from "./core.mjs";
@@ -95,17 +95,35 @@ class TelemetrySpool {
     const { mkdir } = await import("node:fs/promises");
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const saltPath = join(this.directory, "salt");
+    const readSalt = async () => {
+      const salt = await readFile(saltPath);
+      if (salt.length !== 32) throw new Error("Telemetry project salt must contain exactly 32 bytes");
+      return salt;
+    };
     try {
-      this.salt = await readFile(saltPath);
+      this.salt = await readSalt();
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
       const candidate = randomBytes(32);
+      const temporary = join(this.directory, `.salt-${process.pid}-${randomBytes(8).toString("hex")}.tmp`);
+      const handle = await open(temporary, "wx", 0o600);
       try {
-        await writeFile(saltPath, candidate, { mode: 0o600, flag: "wx" });
-        this.salt = candidate;
-      } catch (writeError) {
-        if (!(writeError && typeof writeError === "object" && "code" in writeError && writeError.code === "EEXIST")) throw writeError;
-        this.salt = await readFile(saltPath);
+        await handle.writeFile(candidate);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      try {
+        try {
+          await link(temporary, saltPath);
+        } catch (publishError) {
+          if (!(publishError && typeof publishError === "object" && "code" in publishError && publishError.code === "EEXIST")) throw publishError;
+        }
+        this.salt = await readSalt();
+      } finally {
+        await unlink(temporary).catch((cleanupError) => {
+          if (!(cleanupError && typeof cleanupError === "object" && "code" in cleanupError && cleanupError.code === "ENOENT")) throw cleanupError;
+        });
       }
     }
     this.initialized = true;
