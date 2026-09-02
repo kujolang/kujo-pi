@@ -25,8 +25,11 @@ export KUJO_WATCHDOG_TOKEN='load-from-your-secret-manager'
 export KUJO_WATCHDOG_AUDIENCE=kujo-watchdog
 ```
 
-Kujo Pi posts the versioned `kujo.telemetry.v1` contract to
-`/api/telemetry/traces`. It never stores the Watchdog token in the spool.
+Kujo Pi posts metadata-only `watchdog.telemetry.v2` batches to
+`/telemetry/v2/batches`. It never stores the Watchdog token in the spool. The
+stable Pi lifecycle vocabulary is preserved as source provenance and
+namespaced attributes while Watchdog owns canonical persistence, redaction,
+retention, and export.
 
 ## Correlate proxied model requests
 

@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { sameOriginUrl } from "./core.mjs";
 
-export const TELEMETRY_SCHEMA_VERSION = "kujo.telemetry.v1";
+export const TELEMETRY_SCHEMA_VERSION = "watchdog.telemetry.v2";
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 2_000;
 const DEFAULT_TIMEOUT_MS = 2_000;
@@ -56,6 +56,81 @@ export function toolSpanKind(toolName) {
 /** @param {string} value */
 function hashText(value) {
   return createHash("sha256").update(value).digest("hex").slice(0, 32);
+}
+
+/** @param {string} value @param {number} length */
+function canonicalId(value, length) {
+  return createHash("sha256").update(`kujo-pi:${value}`).digest("hex").slice(0, length);
+}
+
+/** @param {number} value */
+function isoTime(value) {
+  return new Date(value).toISOString();
+}
+
+/** @param {string} value */
+function canonicalStatus(value) {
+  if (value === "success" || value === "ok") return "ok";
+  if (["error", "cancelled", "timeout", "denied", "unset"].includes(value)) return value;
+  if (value === "running") return "unset";
+  return "error";
+}
+
+/** @param {string} value */
+function canonicalKind(value) {
+  if (value === "shell") return "execution";
+  if (["model", "agent", "tool", "retrieval", "workflow", "handoff", "approval", "execution", "persistence", "evaluation", "internal"].includes(value)) return value;
+  return "internal";
+}
+
+/** @param {Record<string, unknown>} bundle @param {{traceId:string,rootSpanId:string}} run @param {string} sessionId @param {string} batchId @param {number} sentAt */
+function canonicalBatch(bundle, run, sessionId, batchId, sentAt) {
+  const traceId = canonicalId(run.traceId, 32);
+  const references = [
+    { type: "session", id: sessionId, namespace: "kujo-pi", relation: "groups" },
+    { type: "run", id: run.traceId, namespace: "kujo-pi", relation: "originates" },
+  ];
+  const privacy = { content_mode: "off", policy_version: "watchdog.privacy.v1", transformations: [] };
+  const source = { producer: "kujo-pi", adapter_id: "kujo-pi.native", adapter_version: "watchdog.ingestion-adapter.v1", original_schema: "kujo-pi.lifecycle.v1" };
+  const records = [];
+  /** @type {Record<string, any>|null} */
+  const trace = bundle.trace && typeof bundle.trace === "object" ? bundle.trace : null;
+  if (trace) {
+    const usage = {
+      input_tokens: safeNumber(trace.input_tokens), output_tokens: safeNumber(trace.output_tokens),
+      total_tokens: safeNumber(trace.input_tokens) + safeNumber(trace.output_tokens),
+      cached_input_tokens: safeNumber(trace.cached_input_tokens), cache_write_input_tokens: safeNumber(trace.cache_write_input_tokens),
+      reasoning_tokens: null, usage_source: "pi", total_semantics: "input_plus_output", provider_usage: null,
+    };
+    records.push({
+      record_id: `pi:trace:${run.traceId}`, record_type: "trace", trace_id: traceId, span_id: null, parent_span_id: null,
+      observed_at: isoTime(sentAt), started_at: isoTime(Number(trace.started_at_ms || sentAt)), ended_at: isoTime(Number(trace.ended_at_ms || sentAt)),
+      kind: null, name: String(trace.name || "pi_agent_run"), status: canonicalStatus(String(trace.status || "unset")), source,
+      references, attributes: cleanAttributes(trace.attributes || {}), usage, costs: [], error: null, content: [], privacy,
+    });
+  }
+  for (const span of Array.isArray(bundle.spans) ? bundle.spans : []) {
+    records.push({
+      record_id: `pi:span:${span.span_id}`, record_type: "span", trace_id: traceId, span_id: canonicalId(String(span.span_id), 16),
+      parent_span_id: span.parent_span_id ? canonicalId(String(span.parent_span_id), 16) : null, observed_at: isoTime(sentAt),
+      started_at: isoTime(Number(span.started_at_ms || sentAt)), ended_at: isoTime(Number(span.ended_at_ms || sentAt)),
+      kind: canonicalKind(String(span.span_kind || "internal")), name: String(span.name || "pi.span"), status: canonicalStatus(String(span.status || "unset")), source,
+      references, attributes: cleanAttributes(span.attributes || {}), usage: null, costs: [], error: null, content: [], privacy,
+    });
+  }
+  for (const event of Array.isArray(bundle.events) ? bundle.events : []) {
+    records.push({
+      record_id: `pi:event:${event.event_id}`, record_type: "event", trace_id: traceId,
+      span_id: event.span_id ? canonicalId(String(event.span_id), 16) : null, parent_span_id: null, observed_at: isoTime(Number(event.occurred_at_ms || sentAt)),
+      started_at: null, ended_at: null, kind: null, name: String(event.event_name || "pi.event"), status: "unset", source,
+      references, attributes: cleanAttributes({ sequence: event.sequence, ...(event.attributes || {}) }), usage: null, costs: [], error: null, content: [], privacy,
+    });
+  }
+  return {
+    schema_version: TELEMETRY_SCHEMA_VERSION, batch_id: batchId, sent_at: isoTime(sentAt),
+    producer: { name: "kujo-pi", version: "1.0.0", adapter_id: "kujo-pi.native", adapter_version: "watchdog.ingestion-adapter.v1", original_schema: "kujo-pi.lifecycle.v1" },
+    records,
+  };
 }
 
 /** @param {string} workspace @param {Buffer} salt */
@@ -186,7 +261,7 @@ class TelemetrySpool {
 
   async flushOnce() {
     await this.writeChain;
-    const endpoint = sameOriginUrl(this.config.baseUrl, "/api/telemetry/traces");
+    const endpoint = sameOriginUrl(this.config.baseUrl, "/telemetry/v2/batches");
     for (const name of await this.files()) {
       const path = join(this.directory, name);
       const body = await readFile(path, "utf8");
@@ -259,13 +334,8 @@ export class PiTelemetryBridge {
   /** @param {Record<string, unknown>} bundle */
   append(bundle) {
     if (!this.enabled || !this.run) return Promise.resolve();
-    return this.spool.append({
-      schema_version: TELEMETRY_SCHEMA_VERSION,
-      source_app: "kujo-pi",
-      trace_id: this.run.traceId,
-      session_id: this.sessionId,
-      ...bundle,
-    });
+    const batchId = `pi:${this.run.traceId}:${this.run.sequence}:${this.uuid()}`;
+    return this.spool.append(canonicalBatch(bundle, this.run, this.sessionId, batchId, this.now()));
   }
 
   /** @param {string} name @param {string} spanId @param {Record<string, unknown>} [attributes] */

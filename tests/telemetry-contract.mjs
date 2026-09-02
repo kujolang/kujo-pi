@@ -83,15 +83,18 @@ assert.doesNotMatch(queuedText, /acme-secret-repository|secret\.example|raw-secr
 assert.doesNotMatch(queuedText, /tool_args|tool_result|prompt|response_body/, "metadata spool must use an allowlist rather than content fields");
 assert.match(queuedText, new RegExp(TELEMETRY_SCHEMA_VERSION.replaceAll(".", "\\.")));
 assert.match(queuedText, /"command_class":"network"/);
-assert.match(queuedText, /"span_kind":"shell"/);
-assert.match(queuedText, /"span_kind":"persistence"/);
-assert.match(queuedText, /"event_name":"persistence_saved"/);
+assert.match(queuedText, /"kind":"execution"/);
+assert.match(queuedText, /"kind":"persistence"/);
+assert.match(queuedText, /"name":"persistence_saved"/);
 
 accept = true;
 await bridge.spool.flush();
 assert.equal((await bridge.spool.files()).length, 0, "successful replay should drain the durable spool");
 assert.ok(delivered.length > 0);
 assert.ok(delivered.every(payload => payload.schema_version === TELEMETRY_SCHEMA_VERSION));
+assert.ok(delivered.every(payload => payload.producer.name === "kujo-pi"));
+assert.ok(delivered.every(payload => payload.records.every(record => record.privacy.content_mode === "off")));
+assert.ok(delivered.some(payload => payload.records.some(record => record.record_type === "span" && record.kind === "execution")));
 await bridge.shutdown("quit");
 await concurrentBridge.shutdown("quit");
 
