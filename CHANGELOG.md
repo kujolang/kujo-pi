@@ -2,6 +2,19 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
+## 1.1.0 - 2026-09-01
+
+### Added
+
+- Opt-in `kujo_ability_list` discovery for principal-visible application Abilities.
+- Approval-gated `kujo_ability_call` execution with canonical invocation IDs, idempotency keys, server-bound approvals, and receipt preservation.
+- Local and HTTPS Ability gateway profiles with least-privilege bearer and audience configuration.
+
+### Security
+
+- Ability execution requires Pi project trust and an independent Pi approval while retaining the application gateway's authorization, request-bound approval, idempotency, and audit controls.
+- Remote Ability gateways require HTTPS; request paths remain on the configured origin and responses stay bounded.
+
 ## 1.0.0 - 2026-08-30
 
 ### Added
