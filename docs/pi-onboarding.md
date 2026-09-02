@@ -30,8 +30,25 @@ Kujo Pi is a thin integration layer. It is not a guarantee that every Kujo compo
 | `kujo_watchdog` | Read configured Watchdog telemetry | Opt-in; URL required |
 | `kujo_leash_approval` | Send an explicit approval event to Leash | Opt-in; approval and token required |
 | `kujo_rag_query` | Query a local Kujo RAG index with citations | Opt-in |
+| `kujo_ability_list` | Discover principal-visible Kujo Abilities | Opt-in; URL required |
+| `kujo_ability_call` | Run a canonical Ability and retain its receipt | Opt-in; approval required |
 
 Optional tools stay inactive until you enable them. Pi must also report the open project as trusted before Kujo Pi enables or runs repository-scoped tools. This keeps normal sessions quiet and prevents installation alone from creating side effects.
+
+### Use Kujo Ability
+
+Configure the application gateway that owns the Ability handlers and policy:
+
+```bash
+export KUJO_ABILITY_GATEWAY_URL=http://127.0.0.1:8080
+export KUJO_ABILITY_GATEWAY_TOKEN='use-a-least-privilege-token'
+```
+
+Then enable the Extend pack or the two Ability tools directly. Discovery returns only the tools authorized for the token. Execution always passes through Pi approval and then the gateway's independent authorization, approval, idempotency, and audit controls.
+
+```text
+/kujo enable kujo_ability_list kujo_ability_call
+```
 
 ## Install
 

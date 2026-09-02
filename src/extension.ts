@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
 import { CAPABILITIES, CAPABILITY_PACKS, OPTIONAL_TOOLS, capabilityByTool, capabilitySummaries, expandCapabilitySelection } from "./capabilities.mjs";
@@ -166,6 +167,11 @@ function serviceHeaders(prefix: string) {
   if (token) headers.authorization = `Bearer ${token}`;
   if (audience) headers["x-kujo-audience"] = audience;
   return headers;
+}
+
+async function abilityResponse(response: Response) {
+  const raw = await boundedResponse(response);
+  try { return JSON.parse(raw); } catch { return { ok: false, status: "invalid_response", message: "Ability gateway returned non-JSON" }; }
 }
 
 function integrationTarget(registry: ReturnType<typeof inspectIntegrations> | null, id: string) {
@@ -513,6 +519,51 @@ export default function kujoPi(pi: ExtensionAPI) {
       } catch (error) {
         return toolResult({ ok: false, status: "configuration_error", message: String(error) });
       }
+    },
+  });
+
+  pi.registerTool({
+    name: "kujo_ability_list", label: "Kujo Ability discovery", description: "List the canonical Abilities available from the configured application gateway.", ...promptHints("kujo_ability_list"),
+    parameters: Type.Object({}), renderResult,
+    async execute(_id, _params: any, signal, _onUpdate, ctx) {
+      const trustError = trustFailure(ctx); if (trustError) return trustError;
+      const base = process.env.KUJO_ABILITY_GATEWAY_URL;
+      if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_ABILITY_GATEWAY_URL to opt into Ability discovery." });
+      try {
+        const endpoint = sameOriginUrl(base, "/v1/ai/mcp/tools");
+        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_ABILITY_GATEWAY") }), signal);
+        const body = await abilityResponse(response);
+        return toolResult({ ok: response.ok, status: response.ok ? "success" : "remote_rejected", code: response.status, body });
+      } catch (error) { return toolResult(errorResult(error)); }
+    },
+  });
+
+  pi.registerTool({
+    name: "kujo_ability_call", label: "Kujo Ability execution", description: "Run one explicitly approved Ability through the configured application gateway.", ...promptHints("kujo_ability_call"),
+    parameters: Type.Object({
+      executionPath: Type.String({ minLength: 1, maxLength: 512, pattern: "^/v1/abilities/[a-z0-9-]+/[a-z0-9-]+/run$" }),
+      input: Type.Record(Type.String({ minLength: 1, maxLength: 256 }), Type.Unknown()),
+      invocationId: Type.Optional(Type.String({ minLength: 1, maxLength: 240 })),
+      idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+      approvalId: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+      confirm: Type.Optional(Type.Boolean()),
+    }), renderResult,
+    async execute(_id, params: any, signal, _onUpdate, ctx) {
+      const trustError = trustFailure(ctx); if (trustError) return trustError;
+      const base = process.env.KUJO_ABILITY_GATEWAY_URL;
+      if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_ABILITY_GATEWAY_URL to opt into Ability execution." });
+      try {
+        const endpoint = sameOriginUrl(base, params.executionPath);
+        const invocationId = params.invocationId || `pi-${randomUUID()}`;
+        const descriptor = createOperationDescriptor({ operation: "ability", command: endpoint.href, args: [], workspace: ctx.cwd, payload: { executionPath: params.executionPath, input: params.input, invocationId } });
+        if (!(await approve(pi, ctx, "Kujo Ability approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
+        const headers = { ...serviceHeaders("KUJO_ABILITY_GATEWAY"), "content-type": "application/json", ...(params.idempotencyKey ? { "idempotency-key": params.idempotencyKey } : {}), ...(params.approvalId ? { "x-ability-approval": params.approvalId } : {}) };
+        const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body: boundedJson({ input: params.input, invocation_id: invocationId, ...(params.approvalId ? { approval_id: params.approvalId } : {}) }) });
+        const body = await abilityResponse(response);
+        const result = { ok: response.ok, status: response.ok ? "success" : "remote_rejected", code: response.status, body };
+        recordReceipt(pi, "ability", ctx.cwd, result, descriptor);
+        return toolResult(result, descriptor.operationId);
+      } catch (error) { const result = errorResult(error); recordReceipt(pi, "ability", ctx.cwd, result); return toolResult(result); }
     },
   });
 

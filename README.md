@@ -112,6 +112,8 @@ The package begins with optional and service-backed integrations inactive. A pro
 | `kujo_watchdog` | opt-in | Read configured Watchdog health/telemetry | Network only when configured |
 | `kujo_leash_approval` | opt-in + approval | Send an approval event to Leash | Network only when configured |
 | `kujo_rag_query` | opt-in | Query a local RAG index with citations | Read-only query |
+| `kujo_ability_list` | opt-in | Discover principal-visible Kujo Abilities | Configured-origin read |
+| `kujo_ability_call` | opt-in + approval | Run a canonical Ability through its application gateway | Server-declared effects |
 
 ## Integration configuration
 
@@ -133,6 +135,8 @@ The package uses installed Kujo tools when available. Set entrypoint variables w
 | `KUJO_RAG_ENTRY` | Required absolute RAG `main.kujo` path |
 | `KUJO_RUNLEDGER_BIN` / `KUJO_RUNLEDGER_ENTRY` | RunLedger executable or absolute entrypoint override |
 | `KUJO_WATCHDOG_URL` | Optional local Watchdog base URL |
+| `KUJO_ABILITY_GATEWAY_URL` | Optional local or HTTPS application Ability gateway |
+| `KUJO_ABILITY_GATEWAY_TOKEN` / `KUJO_ABILITY_GATEWAY_AUDIENCE` | Least-privilege bearer token and optional audience header |
 | `KUJO_WATCHDOG_TOKEN` / `KUJO_WATCHDOG_AUDIENCE` | Optional Watchdog bearer token and audience header |
 | `KUJO_WATCHDOG_TELEMETRY` | Set to `metadata` to enable the trusted-project lifecycle bridge |
 | `KUJO_WATCHDOG_PROXY_PROVIDER` | Pi provider ID eligible for Watchdog correlation headers; default `kujo-watchdog` |

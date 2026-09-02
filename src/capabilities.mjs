@@ -28,8 +28,8 @@ export const CAPABILITY_PACKS = [
   {
     id: "extend",
     label: "Extend",
-    description: "Generate MCP scaffolds and query configured knowledge.",
-    tools: ["kujo_mcp_make", "kujo_rag_query"],
+    description: "Generate MCP scaffolds, query knowledge, and use portable Abilities.",
+    tools: ["kujo_mcp_make", "kujo_rag_query", "kujo_ability_list", "kujo_ability_call"],
   },
   {
     id: "observe",
@@ -53,6 +53,8 @@ export const CAPABILITIES = [
   { tool: "kujo_agents_smoke", label: "Agents SDK", pack: "orchestrate", defaultActive: false, approval: true, sideEffect: "runs deterministic fixtures", prompt: "Run approved offline agent fixtures." },
   { tool: "kujo_mcp_make", label: "MCP", pack: "extend", defaultActive: false, approval: true, sideEffect: "writes generated scaffolding", prompt: "Generate an approved repository-specific MCP scaffold." },
   { tool: "kujo_rag_query", label: "RAG", pack: "extend", defaultActive: false, approval: false, sideEffect: "read-only local query", prompt: "Query configured local knowledge with citations." },
+  { tool: "kujo_ability_list", label: "Ability discovery", pack: "extend", defaultActive: false, approval: false, sideEffect: "configured-origin network read", prompt: "Discover the Kujo Abilities authorized for this principal." },
+  { tool: "kujo_ability_call", label: "Ability execution", pack: "extend", defaultActive: false, approval: true, sideEffect: "runs a server-authorized operation with declared effects", prompt: "Run an approved Kujo Ability and preserve its canonical receipt." },
   { tool: "kujo_watchdog", label: "Watchdog", pack: "observe", defaultActive: false, approval: false, sideEffect: "configured-origin network read", prompt: "Inspect configured Watchdog health or telemetry." },
   { tool: "kujo_leash_approval", label: "Leash", pack: "observe", defaultActive: false, approval: true, sideEffect: "writes an approved service event", prompt: "Send an approved intervention event to configured Leash." },
 ];
