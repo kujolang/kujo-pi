@@ -10,6 +10,7 @@ const documents = [
   "docs/capability-examples.md",
   "docs/contracts.md",
   "docs/audits/repository-hardening.md",
+  "docs/audits/repository-hardening-round2.md",
   "docs/watchdog-telemetry-bridge.md",
   "docs/compatibility.md",
   "docs/integration-registry.md",

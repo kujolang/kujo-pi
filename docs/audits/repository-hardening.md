@@ -1,5 +1,7 @@
 # Kujo Pi repository hardening audit
 
+Latest follow-up: [second hardening pass](repository-hardening-round2.md). The first-pass record below is preserved unchanged.
+
 Date: 2026-09-25 (America/Detroit). Repository: `kujolang/kujo-pi`.
 Branch: `main`. Starting SHA: `9d977bdda760830e3cb00c1e0e756ab2d9acfe1e`.
 Ending implementation SHA: `165564ee9681fd30d506869b21bcbcf43a35c556`. The subsequent audit-record commit contains this report; use `git log -1 -- docs/audits/repository-hardening.md` for its identity.
