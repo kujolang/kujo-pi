@@ -22,6 +22,7 @@ node tests/schema-contract.mjs
 node tests/registry-contract.mjs
 node tests/service-contract.mjs
 node tests/telemetry-contract.mjs
+node tests/telemetry-pressure-contract.mjs
 npm run test:extension
 node tests/pi-host-contract.mjs
 node tests/fresh-profile-contract.mjs

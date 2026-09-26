@@ -476,7 +476,9 @@ export default function kujoPi(pi: ExtensionAPI) {
         ...(error ? { error } : {}),
         remediation: available ? null : `Install ${id}, set its documented environment override, or set KUJO_ECOSYSTEM_ROOT to a matching signed registry checkout.`,
       })) : [];
+      const telemetryStatus = { enabled: telemetry.enabled, ...telemetry.spool.diagnostics() };
       const remediations = [
+        ...(telemetryStatus.droppedBatches || telemetryStatus.writeFailures ? [{ name: "telemetry", status: "data_loss", fix: "Inspect local spool storage and event pressure; pending queue limits reuse KUJO_PI_TELEMETRY_SPOOL_MAX_FILES/MAX_BYTES. Counters are cumulative for this Pi process." }] : []),
         ...Object.entries(availability)
           .filter(([, value]: any) => !value.ok)
           .map(([name, value]: any) => ({ name, status: value.status, command: value.label, fix: `Install ${name} on PATH or set its documented KUJO_*_BIN override.`, detail: value.output || value.message || null })),
@@ -490,6 +492,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         status: remediations.length === 0 ? "ready" : "needs_configuration",
         workspace,
         projectTrusted: ctx.isProjectTrusted?.() ?? "unknown",
+        telemetry: telemetryStatus,
         availability,
         compatibility: {
           actualVersion,

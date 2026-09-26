@@ -9,6 +9,7 @@ assert.ok(files.includes("CHANGELOG.md"));
 assert.ok(files.includes("src/core.mjs"));
 assert.ok(files.includes("src/extension.ts"));
 assert.ok(files.includes("src/telemetry.mjs"));
+assert.ok(files.includes("src/telemetry-files.mjs"));
 assert.ok(files.includes("src/contracts.mjs"));
 assert.ok(files.includes("src/registry.mjs"));
 assert.ok(files.includes("src/capabilities.mjs"));

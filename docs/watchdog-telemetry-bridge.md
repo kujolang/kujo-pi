@@ -50,7 +50,7 @@ the dashboard one run containing workflow, model, tool, and shell spans.
 
 ## Durable local spool
 
-Each metadata bundle is written atomically before delivery. If Watchdog is
+Accepted metadata bundles are written atomically before delivery. If Watchdog is
 unavailable, later Pi events and session shutdown retry the queued files.
 Successful `2xx` intake removes a file. Permanent `4xx` rejections are retained
 with a `.rejected` suffix for bounded local diagnosis.
@@ -60,13 +60,39 @@ Defaults:
 | Variable | Default | Purpose |
 |---|---:|---|
 | `KUJO_PI_TELEMETRY_SPOOL_DIR` | `~/.pi/kujo/telemetry-spool` | Local spool root |
-| `KUJO_PI_TELEMETRY_SPOOL_MAX_BYTES` | `5242880` | Maximum queued bytes per Watchdog origin |
-| `KUJO_PI_TELEMETRY_SPOOL_MAX_FILES` | `2000` | Maximum queued bundles per origin |
+| `KUJO_PI_TELEMETRY_SPOOL_MAX_BYTES` | `5242880` | Committed bytes and per-process pending UTF-8 bytes |
+| `KUJO_PI_TELEMETRY_SPOOL_MAX_FILES` | `2000` | Committed bundles and per-process pending bundles |
 | `KUJO_PI_TELEMETRY_TIMEOUT_MS` | `2000` | Per-delivery network timeout |
 
 The spool directory is mode `0700`; salt and bundle files are mode `0600`.
-Oldest committed queued bundles are removed first when a bound is exceeded. Retention does not delete another writer's unpublished temporary files. Normal write failures clean up their own temporary file; a hard crash can leave an orphan `.tmp` file outside these committed-bundle limits. Remove orphan temporary files only after all Pi writers using that spool have stopped. Concurrent delivery is at-least-once; stable batch IDs allow the receiver to deduplicate replays. The spool is
-partitioned by a one-way hash of the Watchdog origin.
+Oldest committed queued bundles are removed first when a bound is exceeded.
+The same limits independently cap each process's pending write queue. When
+that queue is full, the newest batch is rejected immediately. This best-effort
+telemetry policy keeps lifecycle handlers nonblocking; it does not retry or
+claim persistence for rejected batches. `kujo_doctor` exposes cumulative
+`droppedBatches` and `writeFailures`, current `pendingBatches`/`pendingBytes`,
+and successful local `recoveredTemporaries` cleanup calls. Loss counters remain
+visible until the Pi process restarts and produce a Doctor remediation.
+
+At initialization, recovery removes recognized temporary files only when their
+owning local PID no longer exists. Both salt and bundle writes use random,
+owner-scoped temporary names. Live or reused PIDs, permission-denied/uncertain
+liveness, foreign host scopes, symlinks, and legacy names are preserved. Linux
+scope includes boot ID and PID namespace; if `/proc` identity is unavailable,
+writes continue with unowned names and automatic recovery is disabled. Recovery
+never promotes partial data to a committed bundle. Normal failures clean up
+their own temporary files, including salt write failures.
+
+Use a local spool, not a network filesystem shared across hosts. Hostnames must
+remain distinct for separate machines. Legacy/unowned/foreign-scope temporary
+files (including older Linux boots) need manual removal after all relevant
+writers stop. Recovery occurs on the next spool initialization; committed-byte
+limits do not include live temporary files. Concurrent cleanup counts can
+overlap across processes when a filesystem acknowledges both unlink calls.
+Concurrent delivery is at-least-once; stable batch IDs allow the receiver to
+deduplicate replays. The spool is partitioned by a one-way hash of the configured
+Watchdog URL.
+
 
 ## Privacy contract
 

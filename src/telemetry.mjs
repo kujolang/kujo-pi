@@ -4,6 +4,7 @@ import { link, open, readFile, readdir, rename, stat, unlink } from "node:fs/pro
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { sameOriginUrl } from "./core.mjs";
+import { recoverSpoolTemporaries, temporarySpoolPath } from "./telemetry-files.mjs";
 
 export const TELEMETRY_SCHEMA_VERSION = "watchdog.telemetry.v2";
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
@@ -173,12 +174,26 @@ class TelemetrySpool {
     /** @type {Buffer|null} */
     this.salt = null;
     this.lastError = "";
+    this.pendingBatches = 0;
+    this.pendingBytes = 0;
+    this.droppedBatches = 0;
+    this.writeFailures = 0;
+    this.recoveredTemporaries = 0;
+  }
+
+  diagnostics() {
+    return {
+      pendingBatches: this.pendingBatches, pendingBytes: this.pendingBytes,
+      droppedBatches: this.droppedBatches, writeFailures: this.writeFailures,
+      recoveredTemporaries: this.recoveredTemporaries,
+    };
   }
 
   async initialize() {
     if (this.initialized) return;
     const { mkdir } = await import("node:fs/promises");
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    this.recoveredTemporaries += await recoverSpoolTemporaries(this.directory);
     const saltPath = join(this.directory, "salt");
     const readSalt = async () => {
       const salt = await readFile(saltPath);
@@ -190,15 +205,15 @@ class TelemetrySpool {
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
       const candidate = randomBytes(32);
-      const temporary = join(this.directory, `.salt-${process.pid}-${randomBytes(8).toString("hex")}.tmp`);
+      const temporary = await temporarySpoolPath(this.directory);
       const handle = await open(temporary, "wx", 0o600);
       try {
-        await handle.writeFile(candidate);
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      try {
+        try {
+          await handle.writeFile(candidate);
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
         try {
           await link(temporary, saltPath);
         } catch (publishError) {
@@ -216,13 +231,28 @@ class TelemetrySpool {
 
   /** @param {Record<string, unknown>} payload */
   append(payload) {
+    let body;
+    try {
+      body = JSON.stringify(payload);
+      if (body.length > 64_000) throw new Error("Telemetry payload exceeds 64000 characters");
+    } catch (error) {
+      this.writeFailures += 1;
+      this.lastError = String(error);
+      return this.writeChain;
+    }
+    const bytes = Buffer.byteLength(body, "utf8");
+    if (this.pendingBatches >= this.config.maxFiles || this.pendingBytes + bytes > this.config.maxBytes) {
+      this.droppedBatches += 1;
+      this.lastError = "Telemetry pending queue capacity exceeded; newest batch not queued";
+      return this.writeChain;
+    }
+    this.pendingBatches += 1;
+    this.pendingBytes += bytes;
     this.writeChain = this.writeChain.then(async () => {
       await this.initialize();
-      const body = JSON.stringify(payload);
-      if (body.length > 64_000) throw new Error("Telemetry payload exceeds 64000 characters");
       const name = `${String(this.now()).padStart(16, "0")}-${this.uuid()}.json`;
       const target = join(this.directory, name);
-      const temporary = `${target}.tmp`;
+      const temporary = await temporarySpoolPath(this.directory);
       const handle = await open(temporary, "wx", 0o600);
       try {
         try {
@@ -237,9 +267,13 @@ class TelemetrySpool {
       }
       await this.prune();
     }).catch((error) => {
+      this.writeFailures += 1;
       this.lastError = String(error);
+    }).finally(() => {
+      this.pendingBatches -= 1;
+      this.pendingBytes -= bytes;
     });
-    void this.writeChain.then(() => this.flush());
+    void this.writeChain.then(() => { void this.flush(); });
     return this.writeChain;
   }
 
