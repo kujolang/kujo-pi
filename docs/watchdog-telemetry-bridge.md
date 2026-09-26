@@ -5,6 +5,8 @@ bridge is separate from the Watchdog model proxy: the proxy observes provider
 requests, while the bridge observes Pi agent, turn, tool, shell-request, model,
 and session lifecycle events.
 
+Entering an untrusted session revokes the active run and correlation headers, even when Pi reuses the bridge. Previously queued trusted-session batches remain eligible for delivery.
+
 The bridge is disabled unless all of these conditions are true:
 
 - `KUJO_WATCHDOG_TELEMETRY=metadata` is set;
@@ -63,7 +65,7 @@ Defaults:
 | `KUJO_PI_TELEMETRY_TIMEOUT_MS` | `2000` | Per-delivery network timeout |
 
 The spool directory is mode `0700`; salt and bundle files are mode `0600`.
-Oldest queued bundles are removed first when a bound is exceeded. The spool is
+Oldest committed queued bundles are removed first when a bound is exceeded. Retention does not delete another writer's unpublished temporary files. Normal write failures clean up their own temporary file; a hard crash can leave an orphan `.tmp` file outside these committed-bundle limits. Remove orphan temporary files only after all Pi writers using that spool have stopped. Concurrent delivery is at-least-once; stable batch IDs allow the receiver to deduplicate replays. The spool is
 partitioned by a one-way hash of the Watchdog origin.
 
 ## Privacy contract

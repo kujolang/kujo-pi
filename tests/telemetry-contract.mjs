@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PiTelemetryBridge, TELEMETRY_SCHEMA_VERSION, classifyCommand, telemetryConfig, toolSpanKind } from "../src/telemetry.mjs";
@@ -95,6 +95,20 @@ assert.ok(delivered.every(payload => payload.schema_version === TELEMETRY_SCHEMA
 assert.ok(delivered.every(payload => payload.producer.name === "kujo-pi"));
 assert.ok(delivered.every(payload => payload.records.every(record => record.privacy.content_mode === "off")));
 assert.ok(delivered.some(payload => payload.records.some(record => record.record_type === "span" && record.kind === "execution")));
+await bridge.startRun();
+await bridge.startSession({ sessionId: "untrusted-after-trusted", workspace: rawWorkspace, trusted: false });
+assert.equal(bridge.enabled, false, "a reused bridge must revoke telemetry on an untrusted session");
+assert.equal(bridge.run, null);
+const revokedHeaders = {};
+bridge.correlateProviderHeaders(revokedHeaders, "kujo-watchdog");
+assert.deepEqual(revokedHeaders, {}, "revoked sessions must not receive correlation metadata");
+await bridge.spool.writeChain;
+await bridge.spool.flush();
+const deliveryCount = delivered.length;
+await bridge.startRun();
+bridge.userBash("git status", false);
+await bridge.spool.writeChain;
+assert.equal(delivered.length, deliveryCount);
 await bridge.shutdown("quit");
 await concurrentBridge.shutdown("quit");
 
@@ -122,4 +136,25 @@ for (let index = 0; index < 30; index += 1) boundedBridge.userBash("git status",
 await boundedBridge.spool.writeChain;
 assert.ok((await boundedBridge.spool.files()).length <= 10, "spool file count must remain bounded during prolonged Watchdog downtime");
 
+await boundedBridge.spool.flush();
+const pending = join(boundedBridge.spool.directory, ".active-writer.tmp");
+await writeFile(pending, "active writer");
+await boundedBridge.spool.prune();
+assert.equal(await readFile(pending, "utf8"), "active writer", "retention must not delete another writer's unpublished file");
+await unlink(pending);
+let racedDeliveries = 0;
+boundedBridge.spool.fetchImpl = async (_url, init) => {
+  const batchId = JSON.parse(init.body).batch_id;
+  for (const name of await boundedBridge.spool.files()) {
+    const path = join(boundedBridge.spool.directory, name);
+    if (JSON.parse(await readFile(path, "utf8")).batch_id === batchId) await unlink(path);
+  }
+  racedDeliveries += 1;
+  return { ok: true, status: 200, body: null };
+};
+const expectedDeliveries = (await boundedBridge.spool.files()).length;
+await boundedBridge.spool.flush();
+assert.equal(racedDeliveries, expectedDeliveries, "another sender deleting an acknowledged file must not halt replay");
+assert.equal((await boundedBridge.spool.files()).length, 0);
+await boundedBridge.shutdown("quit");
 console.log("telemetry contract validation passed");

@@ -148,6 +148,16 @@ function cleanAttributes(attributes) {
   return Object.fromEntries(Object.entries(attributes).filter(([, value]) => value !== undefined && value !== ""));
 }
 
+/** @param {unknown} error */
+function isMissingFile(error) {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
+}
+
+/** @param {string} path */
+async function removeSpoolFile(path) {
+  try { await unlink(path); } catch (error) { if (!isMissingFile(error)) throw error; }
+}
+
 class TelemetrySpool {
   /** @param {ReturnType<typeof telemetryConfig>} config @param {{fetchImpl?: typeof fetch, now?: () => number, uuid?: () => string}} options */
   constructor(config, options = {}) {
@@ -215,12 +225,16 @@ class TelemetrySpool {
       const temporary = `${target}.tmp`;
       const handle = await open(temporary, "wx", 0o600);
       try {
-        await handle.writeFile(body, "utf8");
-        await handle.sync();
+        try {
+          await handle.writeFile(body, "utf8");
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+        await rename(temporary, target);
       } finally {
-        await handle.close();
+        await removeSpoolFile(temporary);
       }
-      await rename(temporary, target);
       await this.prune();
     }).catch((error) => {
       this.lastError = String(error);
@@ -235,18 +249,22 @@ class TelemetrySpool {
   }
 
   async prune() {
-    const files = (await readdir(this.directory)).filter((name) => name.endsWith(".json") || name.endsWith(".rejected") || name.endsWith(".tmp")).sort();
+    const files = (await readdir(this.directory)).filter((name) => name.endsWith(".json") || name.endsWith(".rejected")).sort();
     const entries = [];
     let totalBytes = 0;
     for (const name of files) {
-      const size = (await stat(join(this.directory, name))).size;
-      entries.push({ name, size });
-      totalBytes += size;
+      try {
+        const size = (await stat(join(this.directory, name))).size;
+        entries.push({ name, size });
+        totalBytes += size;
+      } catch (error) {
+        if (!isMissingFile(error)) throw error;
+      }
     }
     while (entries.length > this.config.maxFiles || totalBytes > this.config.maxBytes) {
       const oldest = entries.shift();
       if (!oldest) break;
-      await unlink(join(this.directory, oldest.name));
+      await removeSpoolFile(join(this.directory, oldest.name));
       totalBytes -= oldest.size;
     }
   }
@@ -264,7 +282,12 @@ class TelemetrySpool {
     const endpoint = sameOriginUrl(this.config.baseUrl, "/telemetry/v2/batches");
     for (const name of await this.files()) {
       const path = join(this.directory, name);
-      const body = await readFile(path, "utf8");
+      let body;
+      try { body = await readFile(path, "utf8"); }
+      catch (error) {
+        if (isMissingFile(error)) continue;
+        throw error;
+      }
       /** @type {Record<string, string>} */
       const headers = { "content-type": "application/json", accept: "application/json" };
       if (this.config.token) headers.authorization = `Bearer ${this.config.token}`;
@@ -284,12 +307,13 @@ class TelemetrySpool {
       }
       try { await response.body?.cancel(); } catch {}
       if (response.ok) {
-        await unlink(path);
+        await removeSpoolFile(path);
         continue;
       }
       this.lastError = `Watchdog telemetry rejected with HTTP ${response.status}`;
       if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429) {
-        await rename(path, `${path}.rejected`);
+        try { await rename(path, `${path}.rejected`); }
+        catch (error) { if (!isMissingFile(error)) throw error; }
       }
       return;
     }
@@ -316,7 +340,11 @@ export class PiTelemetryBridge {
 
   /** @param {{sessionId:string,workspace:string,provider?:string,model?:string,trusted:boolean}} context */
   async startSession(context) {
-    if (!this.config.enabled || !context.trusted) return;
+    if (!this.config.enabled || !context.trusted) {
+      this.active = false;
+      this.run = null;
+      return;
+    }
     try {
       await this.spool.initialize();
       this.sessionId = context.sessionId;
@@ -458,7 +486,7 @@ export class PiTelemetryBridge {
 
   /** @param {Record<string, string|null>} headers @param {string} provider */
   correlateProviderHeaders(headers, provider) {
-    if (!this.run || provider !== this.config.proxyProvider) return;
+    if (!this.enabled || !this.run || provider !== this.config.proxyProvider) return;
     headers["X-Observe-Session-Id"] = this.sessionId;
     headers["X-Observe-Project-Id"] = this.projectId;
     headers["X-Observe-Correlation-Id"] = this.run.traceId;
