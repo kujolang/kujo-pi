@@ -4,6 +4,8 @@ Repository: `kujolang/kujo-pi`; branch: `main`; date: 2026-09-25 (America/Detroi
 Starting SHA: `407d0b8c50d4642936899ef02f0206cab0e08471` (clean checkout).
 Ending implementation SHA: `5595dcffda03e6bf958821d44fe8389b2dcdd56c`. The following documentation commit records this audit; its identity is available through `git log -1 -- docs/audits/repository-hardening-round2.md`.
 
+The actionable remaining items are addressed in the [remaining-item closure](repository-hardening-round3.md); this report preserves the earlier state.
+
 This pass builds on the [first audit](repository-hardening.md), preserving its history and measurements. It targets fresh evidence rather than repeating resolved findings.
 
 ## Scope and contracts reviewed
