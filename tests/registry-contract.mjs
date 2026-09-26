@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,6 +22,13 @@ assert.equal(inspected.signatureVerified, true);
 assert.equal(scout?.available, true);
 assert.equal(scout?.source, "environment");
 assert.match(scout?.actualSha256 || "", /^[a-f0-9]{64}$/);
+
+const largeBinary = Buffer.alloc(131_089, 120);
+largeBinary[largeBinary.length - 1] = 121;
+writeFileSync(executable, largeBinary);
+const largeInspection = inspectIntegrations({ PATH: "", KUJO_SCOUT_BIN: executable });
+assert.equal(largeInspection.integrations.find(({ id }) => id === "scout").actualSha256,
+  createHash("sha256").update(largeBinary).digest("hex"), "bounded hashing must include every byte and the final partial chunk");
 
 const tampered = join(temp, "registry.json");
 const manifest = JSON.parse(readFileSync(registryPath, "utf8"));

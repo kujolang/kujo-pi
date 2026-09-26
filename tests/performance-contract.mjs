@@ -32,8 +32,7 @@ assert.ok(performance.now() - started < budgets.largeOutputMs);
 
 started = performance.now();
 let attempts = 0;
-await assert.rejects(fetchWithRetry(async () => ({ status: 503, body: { cancel: async () => {} } }), undefined, 3, 100));
-attempts += 3;
+await assert.rejects(fetchWithRetry(async () => { attempts += 1; return { status: 503, body: { cancel: async () => {} } }; }, undefined, 3, 100));
 const retryDuration = performance.now() - started;
 assert.equal(attempts, 3);
 assert.ok(retryDuration >= budgets.retryMinMs && retryDuration < budgets.retryMaxMs, `retry duration ${retryDuration}ms outside budget`);

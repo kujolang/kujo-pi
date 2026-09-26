@@ -4,7 +4,7 @@ Kujo Pi is a small, opt-in Pi client integration. Preserve the quiet-by-default 
 
 ## Source of truth
 
-- `extensions/kujo.ts` owns Pi tool and command behavior.
+- `src/extension.ts` owns Pi tool and command behavior; `extensions/kujo.ts` is the public compatibility entrypoint.
 - `skills/` owns reusable agent guidance.
 - `README.md` owns the user-facing installation and security contract.
 - `tests/release-readiness.sh` owns the offline release-readiness smoke gate.

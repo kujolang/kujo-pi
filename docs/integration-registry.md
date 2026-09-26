@@ -32,3 +32,5 @@ All three paths must be absolute. Supplying another public key is an explicit tr
 The private key used for the initial registry snapshot is intentionally not retained in this repository. Before the first registry update, the release owner must provision an offline Ed25519 signing key and rotate the pinned public key in a separately reviewed security commit. Later registry updates must be signed with that protected key; sign the canonical JSON representation used by `src/contracts.mjs`, replace the detached signature, and run `node tests/registry-contract.mjs`.
 
 If the signing key must rotate, review the new public key as a separate security-sensitive change. Do not combine an unexplained key rotation with integration metadata changes.
+
+Executable checksums read every byte through a reusable 64 KiB buffer. Run `node scripts/benchmark-registry.mjs` from the checkout root for five isolated-process measurements using a 64 MiB fixture; this opt-in benchmark reports elapsed time, peak RSS, and the checksum without a machine-specific timing gate.

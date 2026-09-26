@@ -1,6 +1,6 @@
 // @ts-check
 import { createHash, verify } from "node:crypto";
-import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { accessSync, closeSync, constants, openSync, readSync, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { delimiter, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalJson } from "./contracts.mjs";
@@ -31,7 +31,18 @@ function validateRegistryManifest(manifest) {
 
 /** @param {string} path */
 function fileSha256(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+  const hash = createHash("sha256");
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  const descriptor = openSync(path, "r");
+  try {
+    let bytes;
+    while ((bytes = readSync(descriptor, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, bytes));
+    }
+    return hash.digest("hex");
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /** @param {string} command @param {NodeJS.ProcessEnv} [environment] */
