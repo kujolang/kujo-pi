@@ -200,6 +200,19 @@ assert.equal(watchdogFetchUrl, "http://127.0.0.1:4318/healthz");
 assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
 assert.equal((watchdogFetchOptions?.headers as Record<string, string>).authorization, "Bearer fixture-token");
 assert.equal((watchdogFetchOptions?.headers as Record<string, string>)["x-kujo-audience"], "fixture-audience");
+process.env.KUJO_ABILITY_GATEWAY_URL = "http://127.0.0.1:4318";
+for (const body of ["{not-json", '"' + "x".repeat(12000) + '"']) {
+  globalThis.fetch = async () => new Response(body);
+  const invalidDiscovery = await byName("kujo_ability_list").execute("invalid-discovery", {}, undefined, undefined, ctx);
+  assert.equal(invalidDiscovery.details.ok, false);
+  assert.equal(invalidDiscovery.details.status, "invalid_response");
+  const invalidExecution = await byName("kujo_ability_call").execute("invalid-execution", { executionPath: "/v1/abilities/test/test/run", input: {}, confirm: true }, undefined, undefined, ctx);
+  assert.equal(invalidExecution.details.ok, false);
+  assert.equal(invalidExecution.details.status, "invalid_response");
+}
+globalThis.fetch = async () => new Response('{"tools":[]}');
+assert.equal((await byName("kujo_ability_list").execute("valid-discovery", {}, undefined, undefined, ctx)).details.status, "success");
+delete process.env.KUJO_ABILITY_GATEWAY_URL;
 globalThis.fetch = previousFetch;
 delete process.env.KUJO_WATCHDOG_URL;
 delete process.env.KUJO_WATCHDOG_TOKEN;
@@ -207,6 +220,21 @@ delete process.env.KUJO_WATCHDOG_AUDIENCE;
 for (const variable of ["KUJO_SCOUT_ENTRY", "KUJO_SCENT_ENTRY", "KUJO_MCP_ENTRY", "KUJO_AGENTS_SMOKE_ENTRY", "KUJO_RAG_ENTRY", "KUJO_DISPATCH_ENTRY"]) {
   delete process.env[variable];
 }
+const alreadyAborted = new AbortController();
+alreadyAborted.abort();
+const cancelledBeforeSpawn: any = await runStreamingCommand(join(ctx.cwd, "nonexistent-command"), [], ctx.cwd, alreadyAborted.signal, 5_000, () => {});
+assert.equal(cancelledBeforeSpawn.status, "cancelled", "pre-cancelled commands must not even attempt spawn");
+const cancelledTool = await byName("kujo_status").execute("pre-cancelled", {}, alreadyAborted.signal, undefined, ctx);
+assert.equal(cancelledTool.details.status, "cancelled");
+const stdinResult: any = await runStreamingCommand(process.execPath, ["-e", "process.stdin.resume();process.stdin.on('end',()=>console.log('eof'))"], ctx.cwd, undefined, 5_000, () => {});
+assert.equal(stdinResult.status, "success", "noninteractive command stdin must reach EOF");
+assert.equal(stdinResult.output, "eof");
+const overflow: any = await runStreamingCommand(process.execPath, ["-e", "process.stdout.write('x'.repeat(12001))"], ctx.cwd, undefined, 5_000, () => {});
+assert.equal(overflow.output, "x".repeat(12000) + "\n\n[output truncated at 12000 characters]");
+const whitespaceOverflow: any = await runStreamingCommand(process.execPath, ["-e", "process.stdout.write('x'.repeat(12000)+' '+ 'y'.repeat(100))"], ctx.cwd, undefined, 5_000, () => {});
+assert.match(whitespaceOverflow.output, /output truncated/);
+const unicode: any = await runStreamingCommand(process.execPath, ["-e", "const b=Buffer.from('é😀');function send(i){if(i<b.length)process.stdout.write(b.subarray(i,i+1),()=>setImmediate(()=>send(i+1)));}send(0)"], ctx.cwd, undefined, 5_000, () => {});
+assert.equal(unicode.output, "é😀", "UTF-8 must survive subprocess chunk boundaries");
 const controller = new AbortController();
 const cancellation = runStreamingCommand(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], ctx.cwd, controller.signal, 5_000, () => {});
 setTimeout(() => controller.abort(), 25);

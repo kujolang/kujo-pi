@@ -1,6 +1,6 @@
 // @ts-check
-import { existsSync, realpathSync, statSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { lstatSync, realpathSync, statSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 export { OPTIONAL_TOOLS } from "./capabilities.mjs";
 
 /** @param {string} workspace @param {string} [candidate] */
@@ -8,12 +8,12 @@ export function workspacePath(workspace, candidate = ".") {
   const root = resolve(workspace);
   const target = resolve(root, candidate);
   const lexicalRel = relative(root, target);
-  if (lexicalRel.startsWith("..") || isAbsolute(lexicalRel)) {
+  if ((lexicalRel === ".." || lexicalRel.startsWith(`..${sep}`)) || isAbsolute(lexicalRel)) {
     throw new Error(`Path must stay inside the Pi workspace: ${candidate}`);
   }
   const existing = existingAncestor(target);
   const rel = relative(realpathSync(root), realpathSync(existing));
-  if (rel.startsWith("..") || isAbsolute(rel)) {
+  if ((rel === ".." || rel.startsWith(`..${sep}`)) || isAbsolute(rel)) {
     throw new Error(`Path must stay inside the Pi workspace: ${candidate}`);
   }
   return target;
@@ -31,12 +31,17 @@ export function configuredEntrypoint(value, variable) {
 /** @param {string} target */
 function existingAncestor(target) {
   let current = target;
-  while (!existsSync(current)) {
+  while (true) {
+    try {
+      lstatSync(current);
+      return current;
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+    }
     const parent = dirname(current);
     if (parent === current) throw new Error(`Unable to resolve workspace path: ${target}`);
     current = parent;
   }
-  return current;
 }
 
 /** @param {string} value @param {number} [maxChars] */
@@ -48,7 +53,8 @@ export function truncateOutput(value, maxChars = 12_000) {
 
 /** @param {{stdout: string, stderr: string, code: number|null, killed: boolean, timedOut?: boolean, cancelled?: boolean}} result @param {string} label */
 export function commandResult(result, label) {
-  const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  const raw = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  const output = raw.length > 12_000 ? raw : raw.trim();
   const status = result.cancelled ? "cancelled"
     : result.timedOut ? "timeout"
       : result.killed ? "timeout_or_cancelled"
@@ -122,20 +128,21 @@ export function sameOriginUrl(base, path = "/health") {
 
 /** @param {Response} response @param {number} [maxChars] */
 export async function boundedResponse(response, maxChars = 12_000) {
+  if (!Number.isSafeInteger(maxChars) || maxChars < 1) throw new Error("maxChars must be a positive integer");
   if (!response.body?.getReader) return truncateOutput(await response.text(), maxChars);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let output = "";
   let truncated = false;
   try {
-    while (output.length < maxChars) {
+    while (output.length <= maxChars) {
       const { done, value } = await reader.read();
       if (done) break;
       const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
-      const remaining = Math.max(1, maxChars - output.length);
+      const remaining = Math.max(1, maxChars + 1 - output.length);
       const readLimit = Math.min(bytes.length, remaining * 4 + 4);
-      output += decoder.decode(bytes.slice(0, readLimit), { stream: true });
-      if (output.length >= maxChars || bytes.length > readLimit) {
+      output += decoder.decode(bytes.subarray(0, readLimit), { stream: true });
+      if (output.length > maxChars || bytes.length > readLimit) {
         truncated = true;
         await reader.cancel();
       }
@@ -144,7 +151,7 @@ export async function boundedResponse(response, maxChars = 12_000) {
   } finally {
     reader.releaseLock();
   }
-  return truncated ? `${output.slice(0, maxChars)}\n\n[output truncated at ${maxChars} characters]` : output;
+  return truncated || output.length > maxChars ? `${output.slice(0, maxChars)}\n\n[output truncated at ${maxChars} characters]` : output;
 }
 
 /** @param {AbortSignal|undefined} signal @param {number} [timeoutMs] */
@@ -179,8 +186,10 @@ export async function fetchWithRetry(request, signal, attempts = 3, timeoutMs = 
   if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 10) {
     throw new Error("attempts must be an integer between 1 and 10");
   }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error("timeoutMs must be a positive integer");
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    signal?.throwIfAborted();
     try {
       const response = await request(requestSignal(signal, timeoutMs));
       if (response.status < 500 && response.status !== 408 && response.status !== 429) return response;

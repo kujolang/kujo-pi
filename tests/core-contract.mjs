@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OPTIONAL_TOOLS, boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, receiptPath, requestSignal, sameOriginUrl, truncateOutput, versionFromOutput, workspacePath } from "../src/core.mjs";
@@ -10,6 +10,12 @@ const root = mkdtempSync(join(tmpdir(), "kujo-pi-"));
 assert.equal(workspacePath(root, "src/index.ts"), join(root, "src/index.ts"));
 assert.throws(() => workspacePath(root, "../outside"), /inside/);
 mkdirSync(join(root, "safe"));
+mkdirSync(join(root, "..cache"));
+assert.equal(workspacePath(root, "..cache/file"), join(root, "..cache/file"));
+symlinkSync(join(root, "..cache"), join(root, "dot-link"), "dir");
+assert.equal(workspacePath(root, "dot-link/file"), join(root, "dot-link/file"));
+symlinkSync(join(tmpdir(), "missing-kujo-pi-target"), join(root, "dangling"), "dir");
+assert.throws(() => workspacePath(root, "dangling/file"), /ENOENT/);
 symlinkSync(tmpdir(), join(root, "escape"));
 assert.throws(() => workspacePath(root, "escape/file.txt"), /inside/);
 const entrypoint = join(root, "trusted.kujo");
@@ -62,4 +68,22 @@ const streamedResponse = {
 assert.equal((await boundedResponse(streamedResponse, 10)).length, 47);
 assert.equal(cancelled, true);
 
+for (const limit of [0, -1, 1.5, NaN, Infinity]) {
+  await assert.rejects(boundedResponse(new Response("abc"), limit), /positive integer/);
+}
+for (const value of ["", "abc", "é😀", "abcd"]) {
+  const expected = truncateOutput(value, 3);
+  assert.equal(await boundedResponse(new Response(value), 3), expected);
+  const bytes = new TextEncoder().encode(value);
+  const split = new Response(new ReadableStream({
+    start(controller) { for (const byte of bytes) controller.enqueue(Uint8Array.of(byte)); controller.close(); },
+  }));
+  assert.equal(await boundedResponse(split, 3), expected);
+}
+let abortedRequests = 0;
+await assert.rejects(fetchWithRetry(async () => { abortedRequests++; return { status: 200 }; }, controller.signal));
+assert.equal(abortedRequests, 0, "already-cancelled reads must not invoke request callbacks");
+await assert.rejects(fetchWithRetry(async () => { abortedRequests++; return { status: 200 }; }, undefined, 3, 0), /timeoutMs/);
+assert.equal(abortedRequests, 0);
+rmSync(root, { recursive: true, force: true });
 console.log("core contract validation passed");

@@ -16,3 +16,5 @@ Raw task text, tool output, credentials, and file contents are not persisted in 
 When `KUJO_PI_RECEIPTS=1`, invocation receipts use `kujo.pi.receipt.v1`. Receipts contain the matching operation ID, hashed workspace identity, status, duration, revision, argument digest, and a bounded artifact-tree digest when the operation has an output root. They do not contain raw command output or secrets. See `schemas/approval-v1.schema.json` and `schemas/receipt-v1.schema.json`.
 
 In a headless Pi session, `confirm: true` is accepted only after the existing trusted-project gate passes. It binds the same operation descriptor and records `approvalSource: "trusted_headless_confirm"`.
+
+Ability discovery and execution return `ok: false`, `status: "invalid_response"` when an HTTP-success response cannot be parsed as bounded JSON (including oversized responses). The HTTP code and nested diagnostic body remain available. Failed HTTP statuses retain `remote_rejected`.

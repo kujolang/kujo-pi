@@ -14,6 +14,7 @@ import { PiTelemetryBridge } from "./telemetry.mjs";
 
 async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
   const publishUpdate = (value: unknown) => { if (typeof onUpdate === "function") onUpdate(toolResult(value)); };
+  if (signal?.aborted) return commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
   publishUpdate({ ok: true, status: "running", label: command });
   if (onUpdate) return runStreamingCommand(command, args, cwd, signal, timeout, onUpdate);
   try {
@@ -30,6 +31,12 @@ async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: stri
 
 export function runStreamingCommand(command: string, args: string[], cwd: string, signal: AbortSignal | undefined, timeout: number, onUpdate: (result: any) => void) {
   return new Promise((resolve) => {
+    if (signal?.aborted) {
+      const result = commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
+      onUpdate(toolResult(result));
+      resolve(result);
+      return;
+    }
     const maxChars = 12_000;
     let stdout = "";
     let stderr = "";
@@ -39,7 +46,7 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
     let settled = false;
     let lastUpdate = 0;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const child = spawn(command, args, { cwd, shell: false, windowsHide: true, detached: process.platform !== "win32" });
+    const child = spawn(command, args, { cwd, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     const publish = () => {
       const now = Date.now();
       if (now - lastUpdate < 200) return;
@@ -64,7 +71,7 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
       }
     };
     const terminate = (reason: "timeout" | "cancelled") => {
-      if (settled) return;
+      if (settled || killed) return;
       killed = true;
       timedOut = reason === "timeout";
       cancelled = reason === "cancelled";
@@ -75,8 +82,14 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
     const timer = setTimeout(() => terminate("timeout"), timeout);
     signal?.addEventListener("abort", cancel, { once: true });
     if (signal?.aborted) cancel();
-    child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(0, maxChars); publish(); });
-    child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(0, maxChars); publish(); });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      if (stdout.length <= maxChars) { stdout += chunk.slice(0, maxChars + 1 - stdout.length); publish(); }
+    });
+    child.stderr.on("data", (chunk: string) => {
+      if (stderr.length <= maxChars) { stderr += chunk.slice(0, maxChars + 1 - stderr.length); publish(); }
+    });
     child.on("error", (error) => finish({ label: command, ...errorResult(error) }));
     child.on("close", (code) => finish(commandResult({ stdout, stderr, code, killed, timedOut, cancelled }, command)));
   });
@@ -171,7 +184,8 @@ function serviceHeaders(prefix: string) {
 
 async function abilityResponse(response: Response) {
   const raw = await boundedResponse(response);
-  try { return JSON.parse(raw); } catch { return { ok: false, status: "invalid_response", message: "Ability gateway returned non-JSON" }; }
+  try { return { valid: true, body: JSON.parse(raw) }; }
+  catch { return { valid: false, body: { ok: false, status: "invalid_response", message: "Ability gateway returned non-JSON" } }; }
 }
 
 function integrationTarget(registry: ReturnType<typeof inspectIntegrations> | null, id: string) {
@@ -532,8 +546,8 @@ export default function kujoPi(pi: ExtensionAPI) {
       try {
         const endpoint = sameOriginUrl(base, "/v1/ai/mcp/tools");
         const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_ABILITY_GATEWAY") }), signal);
-        const body = await abilityResponse(response);
-        return toolResult({ ok: response.ok, status: response.ok ? "success" : "remote_rejected", code: response.status, body });
+        const { valid, body } = await abilityResponse(response);
+        return toolResult({ ok: response.ok && valid, status: !response.ok ? "remote_rejected" : valid ? "success" : "invalid_response", code: response.status, body });
       } catch (error) { return toolResult(errorResult(error)); }
     },
   });
@@ -559,8 +573,8 @@ export default function kujoPi(pi: ExtensionAPI) {
         if (!(await approve(pi, ctx, "Kujo Ability approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
         const headers = { ...serviceHeaders("KUJO_ABILITY_GATEWAY"), "content-type": "application/json", ...(params.idempotencyKey ? { "idempotency-key": params.idempotencyKey } : {}), ...(params.approvalId ? { "x-ability-approval": params.approvalId } : {}) };
         const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body: boundedJson({ input: params.input, invocation_id: invocationId, ...(params.approvalId ? { approval_id: params.approvalId } : {}) }) });
-        const body = await abilityResponse(response);
-        const result = { ok: response.ok, status: response.ok ? "success" : "remote_rejected", code: response.status, body };
+        const { valid, body } = await abilityResponse(response);
+        const result = { ok: response.ok && valid, status: !response.ok ? "remote_rejected" : valid ? "success" : "invalid_response", code: response.status, body };
         recordReceipt(pi, "ability", ctx.cwd, result, descriptor);
         return toolResult(result, descriptor.operationId);
       } catch (error) { const result = errorResult(error); recordReceipt(pi, "ability", ctx.cwd, result); return toolResult(result); }
