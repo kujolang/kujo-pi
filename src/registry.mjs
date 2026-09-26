@@ -12,8 +12,8 @@ const DEFAULT_PUBLIC_KEY = fileURLToPath(new URL("../integrations/registry.v1.pu
 
 /** @param {any} manifest */
 function validateRegistryManifest(manifest) {
-  if (manifest.schemaVersion !== REGISTRY_SCHEMA_VERSION || manifest.registryVersion !== 1 || !Array.isArray(manifest.integrations) || manifest.integrations.length === 0) {
-    throw new Error(`Unsupported integration registry schema: ${manifest.schemaVersion || "missing"}`);
+  if (!manifest || typeof manifest !== "object" || manifest.schemaVersion !== REGISTRY_SCHEMA_VERSION || manifest.registryVersion !== 1 || !Array.isArray(manifest.integrations) || manifest.integrations.length === 0) {
+    throw new Error(`Unsupported integration registry schema: ${manifest?.schemaVersion || "missing"}`);
   }
   if (!Number.isFinite(Date.parse(manifest.issuedAt)) || manifest.ecosystemRootEnvironment !== "KUJO_ECOSYSTEM_ROOT") {
     throw new Error("Integration registry metadata is invalid");
@@ -87,49 +87,57 @@ export function loadSignedRegistry(registryPath = DEFAULT_REGISTRY, signaturePat
 
 /** @param {NodeJS.ProcessEnv} [environment] */
 export function inspectIntegrations(environment = process.env) {
-  const registryPath = environment.KUJO_INTEGRATION_REGISTRY
-    ? realpathSync(environment.KUJO_INTEGRATION_REGISTRY)
-    : DEFAULT_REGISTRY;
-  const signaturePath = environment.KUJO_INTEGRATION_REGISTRY_SIGNATURE
-    ? realpathSync(environment.KUJO_INTEGRATION_REGISTRY_SIGNATURE)
-    : registryPath === DEFAULT_REGISTRY ? DEFAULT_SIGNATURE : `${registryPath}.sig`;
-  const publicKeyPath = environment.KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY
-    ? realpathSync(environment.KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY)
-    : DEFAULT_PUBLIC_KEY;
+  const configuredPath = (/** @type {string|undefined} */ value, /** @type {string} */ fallback) => {
+    if (!value) return fallback;
+    if (!isAbsolute(value)) throw new Error("Integration registry, signature, and public key paths must be absolute");
+    return realpathSync(value);
+  };
+  const registryPath = configuredPath(environment.KUJO_INTEGRATION_REGISTRY, DEFAULT_REGISTRY);
+  const signaturePath = configuredPath(environment.KUJO_INTEGRATION_REGISTRY_SIGNATURE,
+    registryPath === DEFAULT_REGISTRY ? DEFAULT_SIGNATURE : `${registryPath}.sig`);
+  const publicKeyPath = configuredPath(environment.KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY, DEFAULT_PUBLIC_KEY);
   const registry = loadSignedRegistry(registryPath, signaturePath, publicKeyPath);
   const ecosystemRoot = environment[registry.manifest.ecosystemRootEnvironment || "KUJO_ECOSYSTEM_ROOT"];
   const integrations = registry.manifest.integrations.map((/** @type {any} */ entry) => {
     const configuredBinary = entry.binaryEnvironment ? environment[entry.binaryEnvironment] : undefined;
     const configuredEntrypoint = entry.entrypointEnvironment ? environment[entry.entrypointEnvironment] : undefined;
-    const binaryPath = findExecutable(configuredBinary || entry.command || "", environment);
+    let binaryPath = null;
     let entrypointPath = null;
     let source = "not_found";
-    if (configuredEntrypoint) {
-      if (!isAbsolute(configuredEntrypoint)) throw new Error(`${entry.entrypointEnvironment} must be an absolute path`);
-      entrypointPath = realpathSync(configuredEntrypoint);
-      source = "environment";
-    } else if (binaryPath) {
-      source = configuredBinary ? "environment" : "path";
-    } else if (ecosystemRoot && entry.relativeEntrypoint) {
-      const candidate = resolve(ecosystemRoot, entry.relativeEntrypoint);
-      if (existsSync(candidate)) {
-        entrypointPath = realpathSync(candidate);
-        source = "signed_registry";
+    let actualSha256 = null;
+    let checksumVerified = null;
+    let error = null;
+    try {
+      if (configuredBinary) {
+        source = "environment";
+        binaryPath = findExecutable(configuredBinary, environment);
+        if (!binaryPath) throw new Error(`${entry.binaryEnvironment} executable is unavailable`);
+      } else if (configuredEntrypoint) {
+        source = "environment";
+        if (!isAbsolute(configuredEntrypoint)) throw new Error(`${entry.entrypointEnvironment} must be an absolute path`);
+        entrypointPath = realpathSync(configuredEntrypoint);
+      } else {
+        binaryPath = findExecutable(entry.command || "", environment);
+        if (binaryPath) source = "path";
+        else if (ecosystemRoot && entry.relativeEntrypoint) {
+          const candidate = resolve(ecosystemRoot, entry.relativeEntrypoint);
+          if (existsSync(candidate)) {
+            source = "signed_registry";
+            entrypointPath = realpathSync(candidate);
+          }
+        }
       }
+      if (entrypointPath && !statSync(entrypointPath).isFile()) throw new Error(`${entry.id} entrypoint must be a file`);
+      const discoveredPath = binaryPath || entrypointPath;
+      actualSha256 = discoveredPath ? fileSha256(discoveredPath) : null;
+      checksumVerified = entrypointPath && source === "signed_registry" ? actualSha256 === entry.sha256 : null;
+    } catch (cause) {
+      error = String(cause);
     }
-    if (entrypointPath && !statSync(entrypointPath).isFile()) throw new Error(`${entry.id} entrypoint must be a file`);
-    const discoveredPath = binaryPath || entrypointPath;
-    const actualSha256 = discoveredPath ? fileSha256(discoveredPath) : null;
-    const checksumVerified = entrypointPath && source === "signed_registry" ? actualSha256 === entry.sha256 : null;
-    const integrityAccepted = source !== "signed_registry" || checksumVerified === true;
     return {
-      ...entry,
-      source,
-      binaryPath,
-      entrypointPath,
-      actualSha256,
-      checksumVerified,
-      available: Boolean(discoveredPath) && integrityAccepted,
+      ...entry, source, binaryPath, entrypointPath, actualSha256, checksumVerified,
+      available: !error && Boolean(binaryPath || entrypointPath) && (source !== "signed_registry" || checksumVerified === true),
+      ...(error ? { error } : {}),
     };
   });
   return {

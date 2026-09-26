@@ -7,6 +7,7 @@ import { workspacePath } from "./core.mjs";
  */
 /** @type {Record<string, {integration: string, binaryEnvironment: string, entrypointEnvironment: string}>} */
 export const OPERATION_CONTRACTS = {
+  runledger: { integration: "runledger", binaryEnvironment: "KUJO_RUNLEDGER_BIN", entrypointEnvironment: "KUJO_RUNLEDGER_ENTRY" },
   scout: { integration: "scout", binaryEnvironment: "KUJO_SCOUT_BIN", entrypointEnvironment: "KUJO_SCOUT_ENTRY" },
   scent: { integration: "scent", binaryEnvironment: "KUJO_SCENT_BIN", entrypointEnvironment: "KUJO_SCENT_ENTRY" },
   review: { integration: "patchbrief", binaryEnvironment: "KUJO_PATCHBRIEF_BIN", entrypointEnvironment: "KUJO_PATCHBRIEF_ENTRY" },
@@ -26,6 +27,12 @@ export function operationContract(operation) {
 /** @param {string} operation @param {any} params @param {string} cwd */
 export function operationArguments(operation, params, cwd) {
   switch (operation) {
+    case "runledger": {
+      const args = params.action === "start"
+        ? ["start", "--provider", params.provider || "unknown", "--model", params.model || "unknown", "--task", params.task || "Pi task", "--repo", cwd]
+        : ["finish", params.runId, "--status", params.status || "partial", "--verdict", params.verdict || "Pi session finished", "--repo", cwd];
+      return { binary: args, entrypoint: ["--", ...args] };
+    }
     case "scout": {
       const args = [workspacePath(cwd, params.path || "."), ...(params.quick ? ["--quick"] : [])];
       return { binary: args, entrypoint: ["--", ...args] };

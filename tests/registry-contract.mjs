@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, realpathSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { inspectIntegrations, loadSignedRegistry } from "../src/registry.mjs";
@@ -45,5 +45,27 @@ const rejected = mismatch.integrations.find(({ id }) => id === "scout");
 assert.equal(rejected?.source, "signed_registry");
 assert.equal(rejected?.checksumVerified, false);
 assert.equal(rejected?.available, false);
+
+
+const explicitEntry = join(temp, "explicit.kujo");
+writeFileSync(explicitEntry, "operator entrypoint");
+const entryWins = inspectIntegrations({ PATH: temp, KUJO_SCOUT_ENTRY: explicitEntry }).integrations.find(({ id }) => id === "scout");
+assert.equal(entryWins.binaryPath, null, "an explicit entrypoint must outrank PATH discovery");
+assert.equal(entryWins.entrypointPath, realpathSync(explicitEntry));
+assert.equal(entryWins.actualSha256, createHash("sha256").update("operator entrypoint").digest("hex"));
+const binaryWins = inspectIntegrations({ PATH: "", KUJO_SCOUT_BIN: executable, KUJO_SCOUT_ENTRY: "/missing-fixture" }).integrations.find(({ id }) => id === "scout");
+assert.equal(binaryWins.available, true, "binary override precedence must match command execution");
+assert.equal(binaryWins.entrypointPath, null);
+const isolatedFailure = inspectIntegrations({ PATH: "", KUJO_SCOUT_ENTRY: join(temp, "missing"), KUJO_SCENT_ENTRY: explicitEntry });
+assert.equal(isolatedFailure.signatureVerified, true);
+assert.equal(isolatedFailure.integrations.find(({ id }) => id === "scout").available, false);
+assert.match(isolatedFailure.integrations.find(({ id }) => id === "scout").error, /ENOENT/);
+assert.equal(isolatedFailure.integrations.find(({ id }) => id === "scent").available, true);
+const binaryFailure = inspectIntegrations({ PATH: temp, KUJO_SCOUT_BIN: join(temp, "missing"), KUJO_SCOUT_ENTRY: explicitEntry }).integrations.find(({ id }) => id === "scout");
+assert.equal(binaryFailure.available, false, "a broken explicit binary must not silently fall back");
+assert.match(binaryFailure.error, /KUJO_SCOUT_BIN/);
+for (const key of ["KUJO_INTEGRATION_REGISTRY", "KUJO_INTEGRATION_REGISTRY_SIGNATURE", "KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY"]) {
+  assert.throws(() => inspectIntegrations({ [key]: "relative-path" }), /must be absolute/);
+}
 
 console.log("signed integration registry contract validation passed");

@@ -34,3 +34,9 @@ The private key used for the initial registry snapshot is intentionally not reta
 If the signing key must rotate, review the new public key as a separate security-sensitive change. Do not combine an unexplained key rotation with integration metadata changes.
 
 Executable checksums read every byte through a reusable 64 KiB buffer. Run `node scripts/benchmark-registry.mjs` from the checkout root for five isolated-process measurements using a 64 MiB fixture; this opt-in benchmark reports elapsed time, peak RSS, and the checksum without a machine-specific timing gate.
+
+## Discovery recovery and precedence
+
+`/kujo setup` and `kujo_doctor` refresh local discovery, so a repaired or newly installed integration can be detected without restarting Pi. Discovery does not install tools or execute workflows. An invalid registry signature still rejects the whole manifest. An unavailable executable or invalid entrypoint instead marks only that integration unavailable, with an `error` detail; other integrations remain usable.
+
+Selection order matches execution: explicit `KUJO_*_BIN`, explicit `KUJO_*_ENTRY`, the command on `PATH`, then a matching signed-registry entrypoint. A broken explicit override does not silently select another target. RunLedger uses this same selection path: entrypoints run through `kujo run <entrypoint> -- <arguments>`, while binaries keep their existing CLI arguments. Registry, signature and public-key overrides must be absolute before canonicalization.
