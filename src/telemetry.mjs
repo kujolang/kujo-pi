@@ -129,7 +129,7 @@ function canonicalBatch(bundle, run, sessionId, batchId, sentAt) {
   }
   return {
     schema_version: TELEMETRY_SCHEMA_VERSION, batch_id: batchId, sent_at: isoTime(sentAt),
-    producer: { name: "kujo-pi", version: "1.0.0", adapter_id: "kujo-pi.native", adapter_version: "watchdog.ingestion-adapter.v1", original_schema: "kujo-pi.lifecycle.v1" },
+    producer: { name: "kujo-pi", version: "1.1.0", adapter_id: "kujo-pi.native", adapter_version: "watchdog.ingestion-adapter.v1", original_schema: "kujo-pi.lifecycle.v1" },
     records,
   };
 }

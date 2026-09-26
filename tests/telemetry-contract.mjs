@@ -93,6 +93,8 @@ assert.equal((await bridge.spool.files()).length, 0, "successful replay should d
 assert.ok(delivered.length > 0);
 assert.ok(delivered.every(payload => payload.schema_version === TELEMETRY_SCHEMA_VERSION));
 assert.ok(delivered.every(payload => payload.producer.name === "kujo-pi"));
+const packageVersion = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")).version;
+assert.ok(delivered.every(payload => payload.producer.version === packageVersion), "telemetry producer version must match the released package");
 assert.ok(delivered.every(payload => payload.records.every(record => record.privacy.content_mode === "off")));
 assert.ok(delivered.some(payload => payload.records.some(record => record.record_type === "span" && record.kind === "execution")));
 await bridge.startRun();

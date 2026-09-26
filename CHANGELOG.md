@@ -2,13 +2,32 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
-## 1.1.0 - 2026-09-01
+## 1.1.0 - 2026-09-26
 
 ### Added
 
 - Opt-in `kujo_ability_list` discovery for principal-visible application Abilities.
 - Approval-gated `kujo_ability_call` execution with canonical invocation IDs, idempotency keys, server-bound approvals, and receipt preservation.
 - Local and HTTPS Ability gateway profiles with least-privilege bearer and audience configuration.
+
+### Changed
+
+- Pi lifecycle metadata uses the canonical Watchdog v2 batch schema, with opt-in delivery and provider-scoped correlation.
+- Doctor refreshes discovery and reports pending telemetry, dropped batches, and deferred orphan cleanup.
+- Integration precedence consistently honors explicit binaries and entrypoints; RunLedger entrypoints use `kujo run`.
+
+### Fixed
+
+- Receipt persistence failures preserve completed operation outcomes and expose actionable warnings.
+- Streamed commands handle pre-abort, closed stdin, UTF-8 boundaries and bounded output; failed requests retain operation IDs.
+- Workspace and registry path validation fail closed at their documented boundaries.
+- Telemetry revokes trust on reused sessions, bounds pending writes, and recovers owned crash-orphan files without deleting live writers' files.
+- Registry checksums and artifact digests use bounded buffers; artifact enumeration is bounded and short reads are handled correctly.
+
+### Compatibility
+
+- Existing tool inputs, CLI flags and required v1 receipt/result fields remain compatible; Ability tools and Doctor diagnostics are additive.
+- Very wide artifact trees return an explicit receipt warning. Legacy or foreign telemetry temporary files still require stopped-writer cleanup.
 
 ### Security
 
