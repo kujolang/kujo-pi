@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -97,6 +97,19 @@ assert.ok(doctorNeedsFixes.details.remediations.some(({ status }: any) => status
 delete process.env.KUJO_PI_MIN_KUJO_VERSION;
 delete process.env.KUJO_WATCHDOG_URL;
 delete process.env.KUJO_LEASH_URL;
+const repairEntry = join(ctx.cwd, "repair.kujo");
+process.env.KUJO_SCOUT_ENTRY = repairEntry;
+const brokenDiscovery = await byName("kujo_doctor").execute("broken-discovery", {}, undefined, undefined, ctx);
+assert.equal(brokenDiscovery.details.registry.signatureVerified, true);
+assert.equal(brokenDiscovery.details.registry.integrations.find(({ id }: any) => id === "scout").available, false);
+writeFileSync(repairEntry, "# repaired integration");
+await commandDefinitions.get("kujo").handler("setup", commandCtx);
+const repairedDiscovery = await byName("kujo_doctor").execute("repaired-discovery", {}, undefined, undefined, ctx);
+assert.equal(repairedDiscovery.details.registry.integrations.find(({ id }: any) => id === "scout").available, true);
+delete process.env.KUJO_SCOUT_ENTRY;
+await commandDefinitions.get("kujo").handler("setup", commandCtx);
+const invalidDoctor = await byName("kujo_doctor").execute("invalid-workspace", { workspace: "../escape" }, undefined, undefined, ctx);
+assert.equal(invalidDoctor.details.status, "configuration_error");
 const success = await byName("kujo_status").execute("1", {}, undefined, undefined, ctx);
 assert.equal(success.details.status, "success");
 assert.equal(success.details.schemaVersion, "kujo.pi.result.v1");
@@ -172,6 +185,16 @@ const approvalEntry = appendedEntries.find(({ type }) => type === "kujo-approval
 assert.equal(approvalEntry?.data.schemaVersion, "kujo.pi.approval.v1");
 assert.match(approvalEntry?.data.argumentsDigest || "", /^[a-f0-9]{64}$/);
 assert.equal(approvalEntry?.data.approvalSource, "interactive_ui");
+process.env.KUJO_RUNLEDGER_ENTRY = trustedEntrypoint;
+const ledgerEntry = await byName("kujo_runledger").execute("ledger-entry", { action: "start", task: "fixture" }, undefined, undefined, ctx);
+assert.equal(ledgerEntry.details.status, "success");
+assert.deepEqual(execCalls.at(-1)?.args.slice(0, 4), ["run", realpathSync(trustedEntrypoint), "--", "start"]);
+process.env.KUJO_RUNLEDGER_BIN = process.execPath;
+await byName("kujo_runledger").execute("ledger-binary", { action: "finish", runId: "run-1" }, undefined, undefined, ctx);
+assert.equal(execCalls.at(-1)?.command, process.execPath);
+assert.equal(execCalls.at(-1)?.args[0], "finish");
+delete process.env.KUJO_RUNLEDGER_ENTRY;
+delete process.env.KUJO_RUNLEDGER_BIN;
 const previousReceipts = process.env.KUJO_PI_RECEIPTS;
 process.env.KUJO_PI_RECEIPTS = "1";
 await byName("kujo_status").execute("receipt", {}, undefined, undefined, ctx);
@@ -179,6 +202,30 @@ const receiptEntry = appendedEntries.find(({ type }) => type === "kujo-receipt")
 assert.equal(receiptEntry?.data.schemaVersion, "kujo.pi.receipt.v1");
 assert.match(receiptEntry?.data.workspaceHash || "", /^[a-f0-9]{64}$/);
 assert.equal("workspace" in (receiptEntry?.data || {}), false);
+const originalAppendEntry = pi.appendEntry;
+pi.appendEntry = (type: string, data: any) => {
+  if (type === "kujo-receipt") throw new Error("fixture receipt disk full");
+  originalAppendEntry(type, data);
+};
+try {
+  const before = execCalls.length;
+  const receiptFailure = await byName("kujo_status").execute("receipt-failure", {}, undefined, undefined, ctx);
+  assert.equal(receiptFailure.details.ok, true, "receipt persistence must not change completed command outcome");
+  assert.equal(receiptFailure.details.status, "success");
+  assert.match(receiptFailure.details.receiptWarning, /disk full/);
+  assert.match(receiptFailure.details.operationId, /^op_/);
+  assert.equal(execCalls.length - before, 2, "only revision and one target command; never retry for a receipt");
+} finally { pi.appendEntry = originalAppendEntry; }
+const wideArtifacts = join(ctx.cwd, "wide-artifacts");
+mkdirSync(wideArtifacts);
+for (let index = 0; index < 4096; index++) mkdirSync(join(wideArtifacts, String(index)));
+const partialReceipt = await byName("kujo_mcp_make").execute("artifact-limit", { artifacts: "wide-artifacts", confirm: true }, undefined, undefined, ctx);
+assert.equal(partialReceipt.details.status, "success");
+assert.match(partialReceipt.details.receiptWarning, /traversal exceeds/);
+const partialReceiptEntry = appendedEntries.at(-1);
+assert.equal(partialReceiptEntry?.type, "kujo-receipt");
+assert.equal(partialReceiptEntry?.data.artifactDigest, null);
+assert.match(partialReceiptEntry?.data.artifactDigestError, /traversal exceeds/);
 if (previousReceipts === undefined) delete process.env.KUJO_PI_RECEIPTS;
 else process.env.KUJO_PI_RECEIPTS = previousReceipts;
 const dispatchCall = execCalls.find(({ args }) => args[0] === "run" && args[2] === "demo");
@@ -212,6 +259,18 @@ for (const body of ["{not-json", '"' + "x".repeat(12000) + '"']) {
 }
 globalThis.fetch = async () => new Response('{"tools":[]}');
 assert.equal((await byName("kujo_ability_list").execute("valid-discovery", {}, undefined, undefined, ctx)).details.status, "success");
+process.env.KUJO_PI_RECEIPTS = "1";
+let failedRequests = 0;
+globalThis.fetch = async () => { failedRequests++; throw new Error("fixture connection lost"); };
+const failedAbility = await byName("kujo_ability_call").execute("failed-ability", { executionPath: "/v1/abilities/test/test/run", input: {}, confirm: true }, undefined, undefined, ctx);
+assert.equal(failedRequests, 1, "approved POSTs must not be automatically retried");
+const failedApproval = appendedEntries.filter(({ type }) => type === "kujo-approval").at(-1);
+const failedReceipt = appendedEntries.filter(({ type }) => type === "kujo-receipt").at(-1);
+assert.equal(failedAbility.details.operationId, failedApproval?.data.operationId);
+assert.equal(failedReceipt?.data.operationId, failedApproval?.data.operationId);
+assert.equal(failedReceipt?.data.ok, false);
+if (previousReceipts === undefined) delete process.env.KUJO_PI_RECEIPTS;
+else process.env.KUJO_PI_RECEIPTS = previousReceipts;
 delete process.env.KUJO_ABILITY_GATEWAY_URL;
 globalThis.fetch = previousFetch;
 delete process.env.KUJO_WATCHDOG_URL;
@@ -227,6 +286,7 @@ assert.equal(cancelledBeforeSpawn.status, "cancelled", "pre-cancelled commands m
 const cancelledTool = await byName("kujo_status").execute("pre-cancelled", {}, alreadyAborted.signal, undefined, ctx);
 assert.equal(cancelledTool.details.status, "cancelled");
 const stdinResult: any = await runStreamingCommand(process.execPath, ["-e", "process.stdin.resume();process.stdin.on('end',()=>console.log('eof'))"], ctx.cwd, undefined, 5_000, () => {});
+assert.ok(Number.isFinite(stdinResult.durationMs) && stdinResult.durationMs >= 0);
 assert.equal(stdinResult.status, "success", "noninteractive command stdin must reach EOF");
 assert.equal(stdinResult.output, "eof");
 const overflow: any = await runStreamingCommand(process.execPath, ["-e", "process.stdout.write('x'.repeat(12001))"], ctx.cwd, undefined, 5_000, () => {});

@@ -26,10 +26,11 @@ function printable(value) {
 /** @param {any} details */
 export function presentResult(details) {
   const status = typeof details?.status === "string" ? details.status : details?.ok === false ? "failed" : "success";
-  const tone = WARNING_STATUSES.has(status) ? "warning" : details?.ok === false ? "error" : "success";
+  const tone = (WARNING_STATUSES.has(status) || (details?.receiptWarning && details?.ok !== false)) ? "warning" : details?.ok === false ? "error" : "success";
   const icon = tone === "success" ? "✓" : tone === "warning" ? "!" : "✗";
   const label = details?.label || "Kujo";
   const lines = [];
+  if (details?.receiptWarning) lines.push(`Receipt warning: ${details.receiptWarning}. The operation result below is unchanged; do not rerun solely to repair the receipt.`);
   const primary = details?.output ?? details?.message ?? details?.body ?? details?.note;
   if (primary !== undefined) lines.push(printable(primary));
   if (Array.isArray(details?.remediations) && details.remediations.length) {

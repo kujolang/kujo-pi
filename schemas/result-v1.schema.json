@@ -9,6 +9,7 @@
     "operationId": { "type": ["string", "null"] },
     "ok": { "type": "boolean" },
     "status": { "type": "string" },
+    "receiptWarning": { "type": "string", "description": "Receipt problem; operation outcome is unchanged and must not be retried solely for receipt repair" },
     "label": { "type": "string" },
     "code": { "type": ["integer", "null"] },
     "durationMs": { "type": ["number", "null"], "minimum": 0 }

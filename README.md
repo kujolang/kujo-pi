@@ -173,7 +173,7 @@ The packaged [signed registry](docs/integration-registry.md) lets Doctor discove
 - Kujo workflow entrypoints must be absolute, operator-configured files. Repository-local fallback names are not executed.
 - User paths are resolved inside Pi's current workspace and passed as argument-array values, never interpolated into shell strings.
 - Command output is bounded before it is returned to the model; streamed UTF-8 is decoded across chunks and truncation is explicitly marked. Commands are noninteractive (stdin is closed).
-- Tokens and secrets are taken from environment variables and are never included in tool output.
+- Configured service tokens are read from environment variables and are not added to tool results by Kujo Pi. External commands and services control their returned content.
 - Receipts are disabled by default; when enabled, they record only operation, workspace, status, exit code, duration, and timestamp.
 - Network integrations are disabled unless their URL is explicitly configured; Leash also requires a token, while Watchdog credentials are optional.
 - Lifecycle telemetry additionally requires `KUJO_WATCHDOG_TELEMETRY=metadata` and a trusted project. Its local spool contains only allowlisted metadata, uses restrictive file modes, and never stores service credentials.

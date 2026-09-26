@@ -11,6 +11,7 @@
     "workspaceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "status": { "type": "string" },
     "artifactDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "artifactDigestError": { "type": "string", "description": "Reason the optional artifact digest is unavailable" },
     "recordedAt": { "type": "string", "format": "date-time" }
   },
   "additionalProperties": true

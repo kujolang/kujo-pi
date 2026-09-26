@@ -1,6 +1,6 @@
 // @ts-check
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, existsSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 export const RESULT_SCHEMA_VERSION = "kujo.pi.result.v1";
@@ -56,34 +56,53 @@ export function versionedResult(value, operationId = null) {
   return { ...record, schemaVersion: RESULT_SCHEMA_VERSION, operationId: typeof record.operationId === "string" ? record.operationId : operationId };
 }
 
-/** @param {string|null|undefined} root @param {number} [maxFiles] @param {number} [maxBytes] */
-export function digestArtifacts(root, maxFiles = 128, maxBytes = 10_000_000) {
+/** @param {string|null|undefined} root @param {number} [maxFiles] @param {number} [maxBytes] @param {number} [maxEntries] */
+export function digestArtifacts(root, maxFiles = 128, maxBytes = 10_000_000, maxEntries = 4_096) {
+  for (const [name, value] of Object.entries({ maxFiles, maxBytes, maxEntries })) {
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);
+  }
   if (!root || !existsSync(root)) return null;
   const absoluteRoot = resolve(root);
   /** @type {string[]} */
   const paths = [];
-  /** @param {string} path */
-  const visit = (path) => {
-    if (paths.length >= maxFiles) return;
+  const pending = [absoluteRoot];
+  let visited = 0;
+  while (pending.length && paths.length < maxFiles) {
+    if (++visited > maxEntries) throw new Error(`Artifact traversal exceeds ${maxEntries} entries`);
+    const path = /** @type {string} */ (pending.pop());
     let stat;
-    try { stat = lstatSync(path); } catch { return; }
-    if (stat.isSymbolicLink()) return;
+    try { stat = lstatSync(path); }
+    catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") continue;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
-      for (const name of readdirSync(path).sort()) visit(resolve(path, name));
+      const names = readdirSync(path).sort();
+      for (let index = names.length - 1; index >= 0; index -= 1) pending.push(resolve(path, names[index]));
     } else if (stat.isFile()) paths.push(path);
-  };
-  visit(absoluteRoot);
+  }
   let remaining = maxBytes;
   const hash = createHash("sha256");
+  let buffer = Buffer.allocUnsafe(0);
   for (const path of paths) {
-    const length = Math.min(lstatSync(path).size, Math.max(0, remaining));
-    const slice = Buffer.alloc(length);
-    const descriptor = openSync(path, "r");
-    try { readSync(descriptor, slice, 0, length, 0); } finally { closeSync(descriptor); }
-    hash.update(relative(absoluteRoot, path));
-    hash.update("\0");
-    hash.update(slice);
-    remaining -= slice.length;
+    const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
+    try {
+      const stat = fstatSync(descriptor);
+      if (!stat.isFile()) throw new Error("Artifact changed to a non-file during hashing");
+      let unread = Math.min(stat.size, remaining);
+      const chunkSize = Math.min(1024 * 1024, unread);
+      if (buffer.length < chunkSize) buffer = Buffer.allocUnsafe(Math.min(1024 * 1024, Math.max(chunkSize, buffer.length * 2)));
+      hash.update(relative(absoluteRoot, path));
+      hash.update("\0");
+      while (unread > 0) {
+        const count = readSync(descriptor, buffer, 0, Math.min(buffer.length, unread), null);
+        if (!count) throw new Error("Artifact changed size during hashing");
+        hash.update(buffer.subarray(0, count));
+        unread -= count;
+        remaining -= count;
+      }
+    } finally { closeSync(descriptor); }
     if (remaining <= 0) break;
   }
   hash.update(`\0files=${paths.length}\0truncated=${remaining <= 0}`);

@@ -18,3 +18,9 @@ When `KUJO_PI_RECEIPTS=1`, invocation receipts use `kujo.pi.receipt.v1`. Receipt
 In a headless Pi session, `confirm: true` is accepted only after the existing trusted-project gate passes. It binds the same operation descriptor and records `approvalSource: "trusted_headless_confirm"`.
 
 Ability discovery and execution return `ok: false`, `status: "invalid_response"` when an HTTP-success response cannot be parsed as bounded JSON (including oversized responses). The HTTP code and nested diagnostic body remain available. Failed HTTP statuses retain `remote_rejected`.
+
+## Receipt failures and artifact limits
+
+Receipt bookkeeping does not change the completed operation's `ok`, `status`, exit code or operation ID. If persistence fails, the tool returns an additive `receiptWarning` and the UI shows a warning. Do not retry an operation solely to repair its receipt: the side effect may already have succeeded. A failed artifact snapshot still allows a receipt with `artifactDigest: null` and `artifactDigestError`. Approved network failures retain the original approval operation ID in their result and receipt. Streaming command results include `durationMs`.
+
+Artifact digests keep the v1 byte ordering for stable files. Snapshots cover at most 128 files and 10,000,000 content bytes, with a 1 MiB read buffer. Traversal visits at most 4,096 entries and fails explicitly beyond that bound rather than implying a complete snapshot. The internal `digestArtifacts` helper accepts a fourth positive integer argument to deliberately adjust that traversal budget. File, byte and traversal budgets must all be positive safe integers. Symlinks are skipped; short reads are completed, and premature EOF is reported. These remain bounded diagnostic summaries, not full-tree integrity proofs. Directory-name enumeration still uses a sorted directory listing.

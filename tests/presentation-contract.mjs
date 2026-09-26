@@ -17,4 +17,11 @@ assert.equal(doctor.tone, "warning");
 assert.match(doctor.output, /scout: Install Scout/);
 assert.ok(presentResult({ ok: true, output: "x".repeat(20_000) }).output.length <= 12_000);
 
+
+const receiptWarning = presentResult({ ok: true, status: "success", output: "x".repeat(12000), receiptWarning: "disk full" });
+assert.equal(receiptWarning.tone, "warning");
+assert.match(receiptWarning.output, /disk full/);
+assert.match(receiptWarning.output, /do not rerun/);
+assert.equal(presentResult({ ok: false, status: "command_failed", receiptWarning: "disk full" }).tone, "error");
+
 console.log("result presentation contract validation passed");
