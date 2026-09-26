@@ -87,7 +87,7 @@ const doctor = await byName("kujo_doctor").execute("doctor", {}, undefined, unde
 assert.ok(performance.now() - doctorStarted < 500, "Doctor mock contract exceeded its startup budget");
 assert.equal(doctor.details.registry.signatureVerified, true);
 assert.ok(Array.isArray(doctor.details.remediations));
-assert.deepEqual(doctor.details.telemetry, { enabled: false, pendingBatches: 0, pendingBytes: 0, droppedBatches: 0, writeFailures: 0, recoveredTemporaries: 0 });
+assert.deepEqual(doctor.details.telemetry, { enabled: false, pendingBatches: 0, pendingBytes: 0, droppedBatches: 0, writeFailures: 0, recoveredTemporaries: 0, deferredTemporaries: 0 });
 process.env.KUJO_PI_MIN_KUJO_VERSION = "9.0.0";
 process.env.KUJO_WATCHDOG_URL = "http://example.com";
 process.env.KUJO_LEASH_URL = "https://leash.example.test";

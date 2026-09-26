@@ -179,13 +179,14 @@ class TelemetrySpool {
     this.droppedBatches = 0;
     this.writeFailures = 0;
     this.recoveredTemporaries = 0;
+    this.deferredTemporaries = 0;
   }
 
   diagnostics() {
     return {
       pendingBatches: this.pendingBatches, pendingBytes: this.pendingBytes,
       droppedBatches: this.droppedBatches, writeFailures: this.writeFailures,
-      recoveredTemporaries: this.recoveredTemporaries,
+      recoveredTemporaries: this.recoveredTemporaries, deferredTemporaries: this.deferredTemporaries,
     };
   }
 
@@ -193,7 +194,9 @@ class TelemetrySpool {
     if (this.initialized) return;
     const { mkdir } = await import("node:fs/promises");
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
-    this.recoveredTemporaries += await recoverSpoolTemporaries(this.directory);
+    const recovery = await recoverSpoolTemporaries(this.directory);
+    this.recoveredTemporaries += recovery.recovered;
+    this.deferredTemporaries += recovery.deferred;
     const saltPath = join(this.directory, "salt");
     const readSalt = async () => {
       const salt = await readFile(saltPath);

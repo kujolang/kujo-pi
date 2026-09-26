@@ -71,7 +71,10 @@ that queue is full, the newest batch is rejected immediately. This best-effort
 telemetry policy keeps lifecycle handlers nonblocking; it does not retry or
 claim persistence for rejected batches. `kujo_doctor` exposes cumulative
 `droppedBatches` and `writeFailures`, current `pendingBatches`/`pendingBytes`,
-and successful local `recoveredTemporaries` cleanup calls. Loss counters remain
+successful local `recoveredTemporaries` cleanup calls, and
+`deferredTemporaries` for busy/inaccessible orphan files. Deferred cleanup is
+reported by Doctor and retried at the next initialization; it does not disable
+an otherwise writable spool. Unexpected I/O errors still propagate. Loss counters remain
 visible until the Pi process restarts and produce a Doctor remediation.
 
 At initialization, recovery removes recognized temporary files only when their

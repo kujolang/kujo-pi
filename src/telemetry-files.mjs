@@ -34,8 +34,9 @@ export async function temporarySpoolPath(directory) {
  */
 export async function recoverSpoolTemporaries(directory) {
   const scope = await ownerScope();
-  if (!scope) return 0;
+  if (!scope) return { recovered: 0, deferred: 0 };
   let recovered = 0;
+  let deferred = 0;
   for await (const entry of await opendir(directory)) {
     const name = entry.name;
     const match = /^\.kujo-pi-([a-f0-9]{32})-([1-9][0-9]*)-([a-f0-9-]{36})\.tmp$/.exec(name);
@@ -52,8 +53,14 @@ export async function recoverSpoolTemporaries(directory) {
       await unlink(path);
       recovered += 1;
     } catch (error) {
-      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+      if (error && typeof error === "object" && "code" in error) {
+        if (error.code === "ENOENT") continue;
+        // Windows can deny a competing unlink while deletion is pending.
+        // Preserve inaccessible files and surface deferred cleanup to Doctor.
+        if (["EPERM", "EACCES", "EBUSY"].includes(String(error.code))) { deferred += 1; continue; }
+      }
+      throw error;
     }
   }
-  return recovered;
+  return { recovered, deferred };
 }

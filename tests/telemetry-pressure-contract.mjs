@@ -24,15 +24,15 @@ try {
   }));
   const [crashed, survivor] = writers;
   assert.equal(crashed.state.salt, survivor.state.salt);
-  assert.equal(await recoverSpoolTemporaries(crashed.state.directory), 0);
+  assert.deepEqual(await recoverSpoolTemporaries(crashed.state.directory), { recovered: 0, deferred: 0 });
   assert.match(await readFile(survivor.state.temporary, "utf8"), /surviving-writer/);
   crashed.child.kill("SIGKILL");
   await crashed.exit;
   const recovered = await Promise.all([recoverSpoolTemporaries(crashed.state.directory), recoverSpoolTemporaries(crashed.state.directory)]);
   // Some filesystems acknowledge both concurrent unlink calls. The invariant
   // is removal of the orphan while the live writer can still publish.
-  assert.ok(recovered.every(count => count === 0 || count === 1));
-  assert.ok(recovered.some(count => count === 1));
+  assert.ok(recovered.every(result => result.recovered === 0 || result.recovered === 1));
+  assert.ok(recovered.some(result => result.recovered === 1));
   await assert.rejects(readFile(crashed.state.temporary), { code: "ENOENT" });
   survivor.child.send("publish");
   assert.equal((await survivor.exit)[0], 0);
@@ -46,20 +46,34 @@ try {
   const foreign = crashed.state.temporary.replace(/\.kujo-pi-[a-f0-9]{32}-/, `.kujo-pi-${"f".repeat(32)}-`);
   await writeFile(unknown, "legacy");
   await writeFile(foreign, "foreign");
-  assert.equal(await recoverSpoolTemporaries(survivor.state.directory), 0);
+  assert.deepEqual(await recoverSpoolTemporaries(survivor.state.directory), { recovered: 0, deferred: 0 });
   assert.equal(await readFile(unknown, "utf8"), "legacy");
   assert.equal(await readFile(foreign, "utf8"), "foreign");
   await writeFile(crashed.state.temporary, "uncertain owner");
   const originalKill = process.kill;
   try {
     process.kill = () => { throw Object.assign(new Error("permission denied"), { code: "EPERM" }); };
-    assert.equal(await recoverSpoolTemporaries(survivor.state.directory), 0);
+    assert.deepEqual(await recoverSpoolTemporaries(survivor.state.directory), { recovered: 0, deferred: 0 });
     assert.equal(await readFile(crashed.state.temporary, "utf8"), "uncertain owner");
   } finally { process.kill = originalKill; }
+  const originalUnlink = fs.unlink;
+  try {
+    fs.unlink = async () => { throw Object.assign(new Error("busy orphan"), { code: "EPERM" }); };
+    syncBuiltinESMExports();
+    assert.deepEqual(await recoverSpoolTemporaries(survivor.state.directory), { recovered: 0, deferred: 1 });
+    assert.equal(await readFile(crashed.state.temporary, "utf8"), "uncertain owner");
+    const deferredBridge = new PiTelemetryBridge({ environment: { KUJO_WATCHDOG_URL: "http://127.0.0.1:7700", KUJO_PI_TELEMETRY_SPOOL_DIR: root } });
+    await deferredBridge.spool.initialize();
+    assert.equal(deferredBridge.spool.initialized, true, "deferred cleanup must not disable a writable spool");
+    assert.equal(deferredBridge.spool.diagnostics().deferredTemporaries, 1);
+    fs.unlink = async () => { throw Object.assign(new Error("I/O failure"), { code: "EIO" }); };
+    syncBuiltinESMExports();
+    await assert.rejects(recoverSpoolTemporaries(survivor.state.directory), { code: "EIO" });
+  } finally { fs.unlink = originalUnlink; syncBuiltinESMExports(); }
   await fs.unlink(crashed.state.temporary);
   if (process.platform !== "win32") {
     await fs.symlink(unknown, crashed.state.temporary);
-    assert.equal(await recoverSpoolTemporaries(survivor.state.directory), 0);
+    assert.deepEqual(await recoverSpoolTemporaries(survivor.state.directory), { recovered: 0, deferred: 0 });
     assert.equal((await fs.lstat(crashed.state.temporary)).isSymbolicLink(), true);
     await fs.unlink(crashed.state.temporary);
   }

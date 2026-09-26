@@ -478,6 +478,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       })) : [];
       const telemetryStatus = { enabled: telemetry.enabled, ...telemetry.spool.diagnostics() };
       const remediations = [
+        ...(telemetryStatus.deferredTemporaries ? [{ name: "telemetry", status: "cleanup_deferred", fix: "Some orphan temporary files were busy or inaccessible. Check local spool permissions; recovery is retried at the next initialization." }] : []),
         ...(telemetryStatus.droppedBatches || telemetryStatus.writeFailures ? [{ name: "telemetry", status: "data_loss", fix: "Inspect local spool storage and event pressure; pending queue limits reuse KUJO_PI_TELEMETRY_SPOOL_MAX_FILES/MAX_BYTES. Counters are cumulative for this Pi process." }] : []),
         ...Object.entries(availability)
           .filter(([, value]: any) => !value.ok)
