@@ -9,6 +9,8 @@ const documents = [
   "docs/enterprise-roadmap.md",
   "docs/capability-examples.md",
   "docs/contracts.md",
+  "docs/audits/repository-hardening.md",
+  "docs/watchdog-telemetry-bridge.md",
   "docs/compatibility.md",
   "docs/integration-registry.md",
   "docs/pi-onboarding.md",
