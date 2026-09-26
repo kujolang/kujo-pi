@@ -1,6 +1,6 @@
 // @ts-check
 import { createHash, randomUUID } from "node:crypto";
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, opendirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 export const RESULT_SCHEMA_VERSION = "kujo.pi.result.v1";
@@ -66,9 +66,8 @@ export function digestArtifacts(root, maxFiles = 128, maxBytes = 10_000_000, max
   /** @type {string[]} */
   const paths = [];
   const pending = [absoluteRoot];
-  let visited = 0;
+  let enumerated = 1;
   while (pending.length && paths.length < maxFiles) {
-    if (++visited > maxEntries) throw new Error(`Artifact traversal exceeds ${maxEntries} entries`);
     const path = /** @type {string} */ (pending.pop());
     let stat;
     try { stat = lstatSync(path); }
@@ -78,7 +77,18 @@ export function digestArtifacts(root, maxFiles = 128, maxBytes = 10_000_000, max
     }
     if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
-      const names = readdirSync(path).sort();
+      // Read a bounded listing before sorting so filesystem enumeration order
+      // cannot change the v1 digest. Overflow is explicit, never a partial hash.
+      const names = [];
+      const directory = opendirSync(path);
+      try {
+        let entry;
+        while ((entry = directory.readSync()) !== null) {
+          if (++enumerated > maxEntries) throw new Error(`Artifact traversal exceeds ${maxEntries} entries`);
+          names.push(entry.name);
+        }
+      } finally { directory.closeSync(); }
+      names.sort();
       for (let index = names.length - 1; index >= 0; index -= 1) pending.push(resolve(path, names[index]));
     } else if (stat.isFile()) paths.push(path);
   }

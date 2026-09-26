@@ -28,7 +28,8 @@ started = performance.now();
 assert.match(truncateOutput("x".repeat(5_000_000), 12_000), /output truncated/);
 const response = new Response("x".repeat(5_000_000));
 assert.match(await boundedResponse(response, 12_000), /output truncated/);
-assert.ok(performance.now() - started < budgets.largeOutputMs);
+const outputDuration = performance.now() - started;
+assert.ok(outputDuration < budgets.largeOutputMs, `large-output duration ${outputDuration}ms exceeds ${budgets.largeOutputMs}ms budget`);
 
 started = performance.now();
 let attempts = 0;

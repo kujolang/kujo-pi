@@ -76,6 +76,25 @@ mkdirSync(emptyTree);
 for (let i = 0; i < 5; i++) mkdirSync(join(emptyTree, String(i)));
 assert.throws(() => digestArtifacts(emptyTree, 128, 100, 3), /traversal exceeds 3 entries/);
 assert.equal(digestArtifacts(emptyTree), legacyDigest(emptyTree));
+// Large single directories must stop enumeration before allocating all names.
+const wideTree = join(workspace, "wide-tree");
+mkdirSync(wideTree);
+for (let i = 0; i < 130; i++) writeFileSync(join(wideTree, String(i).padStart(4, "0")), "x");
+assert.equal(digestArtifacts(wideTree), legacyDigest(wideTree));
+assert.throws(() => digestArtifacts(wideTree, 1, 100, 100), /traversal exceeds 100 entries/);
+const openDirectory = fs.opendirSync;
+let enumeratedNames = 0;
+let closedDirectories = 0;
+try {
+  fs.opendirSync = () => ({
+    readSync() { enumeratedNames += 1; return { name: `item-${enumeratedNames}` }; },
+    closeSync() { closedDirectories += 1; },
+  });
+  syncBuiltinESMExports();
+  assert.throws(() => digestArtifacts(wideTree, 128, 100, 4096), /traversal exceeds 4096 entries/);
+  assert.equal(enumeratedNames, 4096, "enumeration must stop even for an arbitrarily wide directory");
+  assert.equal(closedDirectories, 1, "overflow must close the directory handle");
+} finally { fs.opendirSync = openDirectory; syncBuiltinESMExports(); }
 const read = fs.readSync;
 const expectedShort = legacyDigest(artifacts, 128, 123);
 try {
