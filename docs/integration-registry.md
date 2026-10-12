@@ -29,7 +29,14 @@ All three paths must be absolute. Supplying another public key is an explicit tr
 
 ## Registry updates and key rotation
 
-The private key used for the initial registry snapshot is intentionally not retained in this repository. Before the first registry update, the release owner must provision an offline Ed25519 signing key and rotate the pinned public key in a separately reviewed security commit. Later registry updates must be signed with that protected key; sign the canonical JSON representation used by `src/contracts.mjs`, replace the detached signature, and run `node tests/registry-contract.mjs`.
+The initial signing key was not retained. On 2026-10-12 the key was rotated in a dedicated commit, re-signing the unchanged registry before updating integration metadata. The replacement Ed25519 private key is held outside the repository in the release operator's protected local key store; it is never included in npm packages or CI artifacts. Maintainers must back up that key through their private key-custody process.
+
+Public-key file SHA-256 fingerprints:
+
+- Retired: `e570d4728f941a59fbce25e41ed8424f9d75293de62fecf3477d447da2226795`
+- Current: `b0529ce9c508ebb43030f52ee01edde053f8efb3476252d32fba728ac4f16729`
+
+This is an explicit trust-root rotation, not a signature from the unavailable old key. Review this commit separately from the following release-cohort update. Later registry updates must be signed with the protected current key over the canonical JSON representation from `src/contracts.mjs`; run `node tests/registry-contract.mjs` after signing.
 
 If the signing key must rotate, review the new public key as a separate security-sensitive change. Do not combine an unexplained key rotation with integration metadata changes.
 
