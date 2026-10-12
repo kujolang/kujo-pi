@@ -79,7 +79,7 @@ const beforeSetup = execCalls.length;
 await commandDefinitions.get("kujo").handler("setup plan review", commandCtx);
 assert.match(notifications.at(-1) || "", /kujo.pi.setup-plan.v1/);
 await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, hasUI: true, ui: { ...commandCtx.ui, confirm: async () => false } });
-assert.match(notifications.at(-1) || "", /cancelled; no changes/);
+assert.match(notifications.at(-1) || "", process.platform === "win32" ? /setup supports macOS\/Linux/ : /cancelled; no changes/);
 await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, isProjectTrusted: () => false });
 assert.match(notifications.at(-1) || "", /Trust this project/);
 await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, hasUI: false });
