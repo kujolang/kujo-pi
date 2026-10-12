@@ -41,7 +41,7 @@ const pack = JSON.parse(execFileSync(npmCommand, ["pack", "--json", "--pack-dest
 extractNpmTarball(join(packageOutput, pack.filename), packageRoot);
 symlinkSync(resolve("node_modules"), join(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 
-const piBinary = resolve("node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
+const piBinary = process.env.KUJO_PI_BINARY || resolve("node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
 const child = spawn(process.execPath, [piBinary, "--mode", "rpc", "--no-session", "--no-extensions", "-e", packageRoot, "--approve"], {
   cwd: workspace,
   env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, KUJO_WATCHDOG_TELEMETRY: "off" },

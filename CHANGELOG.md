@@ -2,6 +2,18 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
+## Unreleased
+
+### Changed
+
+- Support Pi 1.x and use Pi 1.1.0 for development, retaining the minimum-host compatibility checks.
+- Refresh development dependencies and pinned CI/release actions flagged by Dependabot.
+- Allow host acceptance tests to verify a separate local Pi installation with `KUJO_PI_BINARY`.
+
+### Security
+
+- Replace the vulnerable Undici 8.9.0 dependency with Pi's patched Undici 8.10.2 dependency.
+
 ## 1.1.0 - 2026-09-26
 
 ### Added

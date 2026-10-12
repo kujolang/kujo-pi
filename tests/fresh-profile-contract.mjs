@@ -10,7 +10,7 @@ const workspace = join(root, "workspace");
 const packageOutput = join(root, "package");
 const isolatedInstall = join(root, "installed");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-const piBinary = resolve("node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
+const piBinary = process.env.KUJO_PI_BINARY || resolve("node_modules", "@earendil-works", "pi-coding-agent", "dist", "bundle", "cli.js");
 mkdirSync(profile);
 mkdirSync(workspace);
 mkdirSync(packageOutput);
