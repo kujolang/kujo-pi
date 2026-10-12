@@ -15,6 +15,8 @@ assert.ok(files.includes("src/registry.mjs"));
 assert.ok(files.includes("src/capabilities.mjs"));
 assert.ok(files.includes("src/presentation.mjs"));
 assert.ok(files.includes("src/operations.mjs"));
+for (const path of ["src/setup.mjs", "src/setup-install.mjs", "bin/kujo-pi-setup.mjs"]) assert.ok(files.includes(path));
+assert.equal(files.some(path => /(?:private|registry.*key).*\.pem$/.test(path)), false);
 for (const prompt of ["understand", "review", "ship", "orchestrate", "extend", "observe"]) {
   assert.ok(files.includes(`prompts/kujo-${prompt}.md`), `missing packaged ${prompt} task prompt`);
 }

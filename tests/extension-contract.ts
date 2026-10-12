@@ -75,6 +75,16 @@ await eventHandlers.get("session_tree")?.({}, {
   sessionManager: { getBranch: () => [{ type: "custom", customType: "kujo-tools-state", data: { schemaVersion: "kujo.pi.tools-state.v1", active: ["removed_v0_tool", 42] } }] },
 });
 assert.deepEqual(activeTools, ["read"], "unknown or malformed legacy activation entries must recover to the quiet core set");
+const beforeSetup = execCalls.length;
+await commandDefinitions.get("kujo").handler("setup plan review", commandCtx);
+assert.match(notifications.at(-1) || "", /kujo.pi.setup-plan.v1/);
+await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, hasUI: true, ui: { ...commandCtx.ui, confirm: async () => false } });
+assert.match(notifications.at(-1) || "", /cancelled; no changes/);
+await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, isProjectTrusted: () => false });
+assert.match(notifications.at(-1) || "", /Trust this project/);
+await commandDefinitions.get("kujo").handler("setup install review", { ...commandCtx, hasUI: false });
+assert.match(notifications.at(-1) || "", /Headless install requires/);
+assert.equal(execCalls.length, beforeSetup, "preview, denied and untrusted setup must not execute commands");
 await commandDefinitions.get("kujo").handler("packs", commandCtx);
 assert.match(notifications.at(-1) || "", /understand:/);
 const completions = await commandDefinitions.get("kujo").getArgumentCompletions("enable und");
@@ -134,6 +144,10 @@ assert.equal(untrustedEnable.details.status, "project_untrusted");
 const enabledPack = await byName("kujo_tools").execute("enable-pack", { enable: ["review"] }, undefined, undefined, ctx);
 assert.deepEqual(enabledPack.details.enabled.sort(), ["kujo_changebucket", "kujo_review_changes"]);
 assert.equal(enabledPack.details.enabledPacks[0], "review");
+process.env.KUJO_SHIPCHECK_BIN = "fixture-shipcheck";
+process.env.KUJO_PATCHBRIEF_BIN = "fixture-patchbrief";
+process.env.KUJO_CHANGEBUCKET_BIN = "fixture-changebucket";
+process.env.KUJO_RUNLEDGER_BIN = "fixture-runledger";
 const approval = await byName("kujo_shipcheck").execute("5", {}, undefined, undefined, ctx);
 assert.equal(approval.details.status, "approval_required");
 const previousKujoBin = process.env.KUJO_BIN;
@@ -186,6 +200,7 @@ const approvalEntry = appendedEntries.find(({ type }) => type === "kujo-approval
 assert.equal(approvalEntry?.data.schemaVersion, "kujo.pi.approval.v1");
 assert.match(approvalEntry?.data.argumentsDigest || "", /^[a-f0-9]{64}$/);
 assert.equal(approvalEntry?.data.approvalSource, "interactive_ui");
+delete process.env.KUJO_RUNLEDGER_BIN;
 process.env.KUJO_RUNLEDGER_ENTRY = trustedEntrypoint;
 const ledgerEntry = await byName("kujo_runledger").execute("ledger-entry", { action: "start", task: "fixture" }, undefined, undefined, ctx);
 assert.equal(ledgerEntry.details.status, "success");

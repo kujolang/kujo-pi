@@ -20,6 +20,7 @@ node tests/operations-contract.mjs
 node scripts/check-version-state.mjs
 node tests/schema-contract.mjs
 node tests/registry-contract.mjs
+node tests/setup-contract.mjs
 node tests/service-contract.mjs
 node tests/telemetry-contract.mjs
 node tests/telemetry-pressure-contract.mjs

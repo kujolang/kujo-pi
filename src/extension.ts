@@ -4,6 +4,9 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
+import { delimiter, dirname } from "node:path";
+import { createSetupPlan, setupSummary, setupHome, managedRuntime } from "./setup.mjs";
+import { applySetupPlan } from "./setup-install.mjs";
 import { CAPABILITIES, CAPABILITY_PACKS, OPTIONAL_TOOLS, capabilityByTool, capabilitySummaries, expandCapabilitySelection } from "./capabilities.mjs";
 import { boundedJson, boundedResponse, commandResult, configuredEntrypoint, errorResult, fetchWithRetry, meetsMinimumVersion, requestSignal, sameOriginUrl, truncateOutput, versionFromOutput, workspacePath } from "./core.mjs";
 import { APPROVAL_SCHEMA_VERSION, RECEIPT_SCHEMA_VERSION, createOperationDescriptor, digestArtifacts, versionedResult, workspaceDigest } from "./contracts.mjs";
@@ -12,11 +15,11 @@ import { presentResult } from "./presentation.mjs";
 import { operationArguments, operationContract } from "./operations.mjs";
 import { PiTelemetryBridge } from "./telemetry.mjs";
 
-async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void) {
+async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void, environment?: NodeJS.ProcessEnv) {
   const publishUpdate = (value: unknown) => { if (typeof onUpdate === "function") onUpdate(toolResult(value)); };
   if (signal?.aborted) return commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
   publishUpdate({ ok: true, status: "running", label: command });
-  if (onUpdate) return runStreamingCommand(command, args, cwd, signal, timeout, onUpdate);
+  if (onUpdate || environment) return runStreamingCommand(command, args, cwd, signal, timeout, onUpdate || (() => {}), environment);
   try {
     const started = Date.now();
     const result = { ...commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command), durationMs: Date.now() - started };
@@ -29,7 +32,7 @@ async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: stri
   }
 }
 
-export function runStreamingCommand(command: string, args: string[], cwd: string, signal: AbortSignal | undefined, timeout: number, onUpdate: (result: any) => void) {
+export function runStreamingCommand(command: string, args: string[], cwd: string, signal: AbortSignal | undefined, timeout: number, onUpdate: (result: any) => void, environment?: NodeJS.ProcessEnv) {
   return new Promise((resolve) => {
     if (signal?.aborted) {
       const result = commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
@@ -47,7 +50,7 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
     let settled = false;
     let lastUpdate = 0;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const child = spawn(command, args, { cwd, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
+    const child = spawn(command, args, { cwd, env: environment ? { ...process.env, ...environment } : process.env, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     const publish = () => {
       const now = Date.now();
       if (now - lastUpdate < 200) return;
@@ -211,27 +214,28 @@ function integrationTarget(registry: ReturnType<typeof inspectIntegrations> | nu
   return null;
 }
 
-function commandFor(operation: string, params: any, cwd: string, registry: ReturnType<typeof inspectIntegrations> | null): [string, string[]] {
+export function commandFor(operation: string, params: any, cwd: string, registry: ReturnType<typeof inspectIntegrations> | null): [string, string[], NodeJS.ProcessEnv?] {
   const entry = (name: string) => process.env[name];
   const requiredEntry = (name: string) => configuredEntrypoint(entry(name), name);
   const cli = (name: string, fallback: string, args: string[]) => [entry(name) || fallback, args] as [string, string[]];
-  const kujo = findExecutable(entry("KUJO_BIN") || "kujo") || entry("KUJO_BIN") || "kujo";
+  const privateRuntime = managedRuntime(setupHome());
+  const kujo = entry("KUJO_BIN") || (existsSync(privateRuntime) ? privateRuntime : findExecutable("kujo") || "kujo");
   const resolved = (id: string, binaryEnv: string, entryEnv: string, binaryArgs: string[], entryArgs: string[]) => {
     const overrideBinary = entry(binaryEnv);
     if (overrideBinary) return [overrideBinary, binaryArgs] as [string, string[]];
     if (entry(entryEnv)) return [kujo, ["run", requiredEntry(entryEnv), ...entryArgs]] as [string, string[]];
+    const managed = registry ? integrationById(registry, id) : null;
+    if (managed?.source === "kennel" && managed.available) {
+      return [kujo, ["run", managed.entrypointPath, "--interpreter", "--isolated-imports", "--", ...binaryArgs], { ...(id === "dispatch" ? { DISPATCH_ROOT: dirname(managed.entrypointPath) } : {}), KUJO_MODULE_PATH: managed.modulePaths.join(delimiter), KUJO_ISOLATED_IMPORTS: "1", KUJO_BIN: kujo, KUJO_SCRIPT_ARGS_JSON: undefined, KUJO_SCRIPT_ARGS: undefined }] as [string, string[], NodeJS.ProcessEnv];
+    }
     const target = integrationTarget(registry, id);
     if (target?.mode === "binary") return [target.path, binaryArgs] as [string, string[]];
     if (target?.mode === "entrypoint") return [kujo, ["run", target.path, ...entryArgs]] as [string, string[]];
-    const declared = registry ? integrationById(registry, id) : null;
-    if (declared?.command && ["patchbrief", "changebucket", "shipcheck", "runledger"].includes(id)) {
-      return [declared.command, binaryArgs] as [string, string[]];
-    }
     throw new Error(`No verified ${id} integration found; set ${binaryEnv}, ${entryEnv}, or KUJO_ECOSYSTEM_ROOT`);
   };
   switch (operation) {
-    case "status": return cli("KUJO_BIN", "kujo", ["--version"]);
-    case "check": return cli("KUJO_BIN", "kujo", ["check", workspacePath(cwd, params.file)]);
+    case "status": return [kujo, ["--version"]];
+    case "check": return [kujo, ["check", workspacePath(cwd, params.file)]];
     default: {
       const contract = operationContract(operation);
       if (!contract) throw new Error(`Unsupported Kujo operation: ${operation}`);
@@ -304,7 +308,7 @@ export default function kujoPi(pi: ExtensionAPI) {
     getArgumentCompletions: (prefix) => {
       const options = [
         ["list", "List every capability"], ["packs", "List task-oriented packs"], ["active", "Show active tools"],
-        ["setup", "Check local integration readiness"], ["enable", "Enable a tool or pack"], ["disable", "Disable a tool or pack"],
+        ["setup", "Check readiness and preview installation"], ["demo", "Read-only change-footprint demo"], ["enable", "Enable a tool or pack"], ["disable", "Disable a tool or pack"],
         ["init", "Create the local .kujo/pi directory"],
       ];
       const [action, partial = ""] = prefix.split(/\s+/, 2);
@@ -331,11 +335,39 @@ export default function kujoPi(pi: ExtensionAPI) {
         return;
       }
       if (action === "setup") {
-        refreshRegistry();
-        const available = registry?.integrations.filter((integration: any) => integration.available).map((integration: any) => integration.id) || [];
-        const total = registry?.integrations.length || 0;
-        const next = available.length ? "/kujo packs, then /kujo enable <pack>" : "Install Kujo integrations or set KUJO_ECOSYSTEM_ROOT, then run /kujo setup again";
-        ctx.ui.notify(`Kujo setup: signed registry ${registry?.signatureVerified ? "verified" : "unavailable"}; ${available.length}/${total} local integrations ready. Next: ${next}.`, registry ? "info" : "warning");
+        try {
+          refreshRegistry();
+          if (!registry) throw new Error(registryError || "Signed registry unavailable");
+          const subcommand = names[0] || "summary";
+          const pack = ["plan", "install"].includes(subcommand) ? names[1] || "understand" : subcommand === "summary" ? "understand" : subcommand;
+          const plan = createSetupPlan(registry, pack);
+          if (subcommand === "plan") {
+            ctx.ui.notify(JSON.stringify(plan, null, 2), "info");
+          } else if (subcommand === "install") {
+            if (ctx.isProjectTrusted?.() !== true) throw new Error("Trust this project before installing a toolchain");
+            if (!ctx.hasUI) throw new Error("Headless install requires kujo-pi-setup apply PACK --approve-plan DIGEST after a separate plan preview");
+            if (!plan.steps.length) throw new Error(plan.note);
+            const approved = await ctx.ui.confirm("Install Kujo tools?", JSON.stringify(plan, null, 2));
+            if (!approved) { ctx.ui.notify("Setup cancelled; no changes made.", "info"); return; }
+            // Recompute after the approval UI in case the registry or environment changed.
+            const current = createSetupPlan(refreshRegistry(), pack);
+            await applySetupPlan(current, plan.digest, message => ctx.ui.notify(message, "info"));
+            refreshRegistry();
+            const missing = current.packages.filter((p: any) => !registry?.integrations.find((e: any) => e.id === p.id)?.available);
+            if (missing.length) throw new Error(`Installed but not ready: ${missing.map((p: any) => p.id).join(", ")}. Run /kujo setup for diagnostics.`);
+            ctx.ui.notify(setupSummary(registry, current), "info");
+          } else ctx.ui.notify(setupSummary(registry, plan), "info");
+        } catch (error) { ctx.ui.notify(`Kujo setup: ${String(error)}`, "error"); }
+        return;
+      }
+      if (action === "demo") {
+        if (ctx.isProjectTrusted?.() !== true) { ctx.ui.notify("Trust this project before running the read-only demo.", "warning"); return; }
+        try {
+          refreshRegistry();
+          const [command, args, environment] = commandFor("changebucket", {}, ctx.cwd, registry);
+          const result: any = await exec(pi, command, args, ctx.cwd, undefined, 120_000, undefined, environment);
+          ctx.ui.notify(`Kujo demo: ${result.status}\n${result.output || result.message || ""}`, result.ok ? "info" : "error");
+        } catch (error) { ctx.ui.notify(`Kujo demo: ${String(error)}. Run /kujo setup review.`, "error"); }
         return;
       }
       if (action === "active") {
@@ -405,7 +437,8 @@ export default function kujoPi(pi: ExtensionAPI) {
           const cwd = workspacePath(ctx.cwd, params.workspace || ".");
           const trustError = trustFailure(ctx);
           if (trustError) return trustError;
-          const [command, args] = commandFor(operation, { ...params, confirm: params.confirm === true }, cwd, registry);
+          refreshRegistry();
+          const [command, args, environment] = commandFor(operation, { ...params, confirm: params.confirm === true }, cwd, registry);
           const descriptor = createOperationDescriptor({
             operation,
             command: findExecutable(command) || command,
@@ -420,7 +453,7 @@ export default function kujoPi(pi: ExtensionAPI) {
           if (requiresApproval && !approved) {
             return toolResult({ ok: false, status: "approval_required", message: "No approval was granted." }, descriptor.operationId);
           }
-          const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate);
+          const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate, environment);
           recordReceipt(pi, operation, cwd, result, descriptor);
           return toolResult(result, descriptor.operationId);
         } catch (error) {
@@ -441,7 +474,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       catch (error) { return toolResult({ ok: false, status: "configuration_error", message: String(error) }); }
       const registry = refreshRegistry();
       const binaries = {
-        kujo: configuredCommand("KUJO_BIN", "kujo"),
+        kujo: process.env.KUJO_BIN || (existsSync(managedRuntime(setupHome())) ? managedRuntime(setupHome()) : "kujo"),
         patchbrief: configuredCommand("KUJO_PATCHBRIEF_BIN", "patchbrief"),
         changebucket: configuredCommand("KUJO_CHANGEBUCKET_BIN", "changebucket"),
         shipcheck: configuredCommand("KUJO_SHIPCHECK_BIN", "shipcheck"),
@@ -454,7 +487,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       ]))) as Record<string, unknown>;
       const kujoResult: any = availability.kujo;
       const actualVersion = versionFromOutput(kujoResult.output || "");
-      const minimumText = process.env.KUJO_PI_MIN_KUJO_VERSION;
+      const minimumText = process.env.KUJO_PI_MIN_KUJO_VERSION || registry?.installation?.runtimeVersion;
       const minimumVersion = minimumText ? versionFromOutput(minimumText) : null;
       const minimumSatisfied = meetsMinimumVersion(actualVersion, minimumVersion);
       const servicePolicy = (name: string, base: string | undefined, healthPath: string, needsToken = false) => {
@@ -474,8 +507,9 @@ export default function kujoPi(pi: ExtensionAPI) {
       const registrySummary = registry ? registry.integrations.map(({ id, version, capabilities, source, binaryPath, entrypointPath, actualSha256, checksumVerified, available, error }: any) => ({
         id, version, capabilities, source, path: binaryPath || entrypointPath, actualSha256, checksumVerified, available,
         ...(error ? { error } : {}),
-        remediation: available ? null : `Install ${id}, set its documented environment override, or set KUJO_ECOSYSTEM_ROOT to a matching signed registry checkout.`,
+        remediation: available ? null : `Run /kujo setup to preview the matching pack installation, or set the documented ${id} override for an existing installation.`,
       })) : [];
+      const setup = registry?.installation ? createSetupPlan(registry, "understand") : null;
       const telemetryStatus = { enabled: telemetry.enabled, ...telemetry.spool.diagnostics() };
       const remediations = [
         ...(telemetryStatus.deferredTemporaries ? [{ name: "telemetry", status: "cleanup_deferred", fix: "Some orphan temporary files were busy or inaccessible. Check local spool permissions; recovery is retried at the next initialization." }] : []),
@@ -493,6 +527,7 @@ export default function kujoPi(pi: ExtensionAPI) {
         status: remediations.length === 0 ? "ready" : "needs_configuration",
         workspace,
         projectTrusted: ctx.isProjectTrusted?.() ?? "unknown",
+        setup,
         telemetry: telemetryStatus,
         availability,
         compatibility: {
@@ -548,9 +583,10 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (trustError) return trustError;
       try {
         const cwd = workspacePath(ctx.cwd, params.workspace || ".");
-        const [command, args] = commandFor("runledger", params, cwd, registry);
+        refreshRegistry();
+        const [command, args, environment] = commandFor("runledger", params, cwd, registry);
         const descriptor = createOperationDescriptor({ operation: "runledger", command, args, workspace: cwd, revision: await workspaceRevision(pi, cwd), entrypoint: args[0] === "run" ? args[1] : null, payload: params });
-        const result = await exec(pi, command, args, cwd, signal, 120_000, _onUpdate);
+        const result = await exec(pi, command, args, cwd, signal, 120_000, _onUpdate, environment);
         recordReceipt(pi, "runledger", cwd, result, descriptor);
         return toolResult(result, descriptor.operationId);
       } catch (error) {

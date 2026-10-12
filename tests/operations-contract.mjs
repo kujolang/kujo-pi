@@ -26,7 +26,7 @@ assert.deepEqual(operationArguments("runledger", { action: "finish", runId: "run
 console.log("integration operation contract validation passed");
 
 for (const [operation, params, expected] of [
-  ["dispatch", { task: "review with spaces", workflow: "routed-review", output: "my reports" }, ["demo", "review with spaces", "--workflow", "routed-review", "--output-root", join(cwd, "my reports"), "--non-interactive", "--yes"]],
+  ["dispatch", { task: "review with spaces", workflow: "routed-review", output: "my reports" }, ["demo", "review with spaces", "--workflow", "routed-review", "--output-root", "my reports", "--non-interactive", "--yes"]],
   ["rag", { question: "Where are the tests?", namespace: "docs" }, ["query", "--question", "Where are the tests?", "--namespace", "docs"]],
   ["mcp", { path: ".", artifacts: "my reports" }, ["make", cwd, "--artifacts", join(cwd, "my reports")]],
 ]) {

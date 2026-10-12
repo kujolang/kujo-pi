@@ -1,4 +1,5 @@
 // @ts-check
+import { relative } from "node:path";
 import { workspacePath } from "./core.mjs";
 
 /**
@@ -54,7 +55,7 @@ export function operationArguments(operation, params, cwd) {
     }
     case "agents": return { binary: [], entrypoint: ["--interpreter"] };
     case "dispatch": {
-      const args = ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), "--non-interactive", "--yes"];
+      const args = ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", relative(cwd, workspacePath(cwd, params.output || ".kujo/pi/dispatch")) || ".", "--non-interactive", "--yes"];
       return { binary: args, entrypoint: args };
     }
     default: throw new Error(`Unsupported Kujo operation: ${operation}`);
