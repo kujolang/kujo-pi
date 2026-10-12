@@ -38,12 +38,12 @@ export function operationArguments(operation, params, cwd) {
       return { binary: args, entrypoint: ["--", ...args] };
     }
     case "scent": {
-      const args = ["pack", workspacePath(cwd, params.path || "."), "--task", params.task, "--dry-run", "--json"];
+      const args = ["pack", "--include", workspacePath(cwd, params.path || "."), "--task", params.task, "--dry-run", "--json"];
       return { binary: args, entrypoint: ["--", ...args] };
     }
     case "review": return { binary: ["handoff"], entrypoint: ["--", "handoff"] };
-    case "changebucket": return { binary: ["report", "--format", "json"], entrypoint: ["--", "report", "--format", "json"] };
-    case "shipcheck": return { binary: ["check", "--format", "json"], entrypoint: ["--", "check", "--format", "json"] };
+    case "changebucket": return { binary: ["--json"], entrypoint: ["--", "--json"] };
+    case "shipcheck": return { binary: ["gate", "--format", "json"], entrypoint: ["--", "gate", "--format", "json"] };
     case "mcp": {
       const args = ["make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")];
       return { binary: args, entrypoint: ["--interpreter", ...args] };

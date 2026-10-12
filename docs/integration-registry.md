@@ -46,4 +46,12 @@ Executable checksums read every byte through a reusable 64 KiB buffer. Run `node
 
 `/kujo setup` and `kujo_doctor` refresh local discovery, so a repaired or newly installed integration can be detected without restarting Pi. Discovery does not install tools or execute workflows. An invalid registry signature still rejects the whole manifest. An unavailable executable or invalid entrypoint instead marks only that integration unavailable, with an `error` detail; other integrations remain usable.
 
-Selection order matches execution: explicit `KUJO_*_BIN`, explicit `KUJO_*_ENTRY`, the command on `PATH`, then a matching signed-registry entrypoint. A broken explicit override does not silently select another target. RunLedger uses this same selection path: entrypoints run through `kujo run <entrypoint> -- <arguments>`, while binaries keep their existing CLI arguments. Registry, signature and public-key overrides must be absolute before canonicalization.
+Selection order matches execution: explicit `KUJO_*_BIN`, explicit `KUJO_*_ENTRY`, a verified private Kennel installation, the command on `PATH`, then a matching signed-registry entrypoint. A broken explicit override does not silently select another target. RunLedger uses this same selection path: entrypoints run through `kujo run <entrypoint> -- <arguments>`, while binaries keep their existing CLI arguments. Registry, signature and public-key overrides must be absolute before canonicalization.
+
+## Released installation cohort
+
+The optional `installation` contract pins the runtime version, Kennel version, and installer URL/checksum. Each released integration records its package version, source commit, archive digest, provenance-statement digest, minimum runtime, platforms and canonical entrypoint hash. Setup does not follow mutable Git branches.
+
+Managed discovery reads the private Kennel `tools.json` lock record, checks its released identity against this signed cohort, contains real module paths within the installed generation, and verifies the entrypoint hash. Execution uses the managed runtime with isolated imports and those module roots, rather than trusting an arbitrary wrapper script. These checks do not continuously hash every dependency; preserve the dedicated toolchain directory's permissions.
+
+Explicit overrides are operator trust decisions and remain distinguishable from `kennel` and `signed_registry` sources. A stale or modified managed install fails closed and reports the required released version. It does not fall back silently to another installation. The packaged consumer test covers normal npm peer resolution, approved Kennel setup, real Pi discovery and an actual read-only ChangeBucket result.

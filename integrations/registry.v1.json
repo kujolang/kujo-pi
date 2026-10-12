@@ -1,108 +1,224 @@
 {
   "schemaVersion": "kujo.pi.integration-registry.v1",
   "registryVersion": 1,
-  "issuedAt": "2026-08-29T00:00:00Z",
+  "issuedAt": "2026-10-12T00:00:00Z",
   "ecosystemRootEnvironment": "KUJO_ECOSYSTEM_ROOT",
   "integrations": [
     {
       "id": "scout",
-      "version": "682490313f0e1424d731eaf7892455569e171cee",
-      "capabilities": ["repository-intelligence"],
+      "version": "f3a874fa0e95e26c52ef9ec4d23b0f52d8372089",
+      "capabilities": [
+        "repository-intelligence"
+      ],
       "command": "scout",
       "binaryEnvironment": "KUJO_SCOUT_BIN",
       "entrypointEnvironment": "KUJO_SCOUT_ENTRY",
       "relativeEntrypoint": "scout/scout.kujo",
-      "sha256": "01edd32380c9cc15af9e9cf7663e4c55ec60ecc15fbf8d12544e05b48e1f39fd"
+      "sha256": "1e0f4aa15b80fc5689132783261d00bb551ef79d5eed56aaa9cffef97c9e3e87",
+      "package": "scout",
+      "packageVersion": "1.1.0",
+      "minimumKujoVersion": "1.5.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "93960a0d88640565342c74a4300b81fc9d1491063b9944962d2826cd9e77b175",
+      "provenanceSha256": "89a62405ffe070c2f858c4d0764d7f53a9d54f040f5796db72ef0359d7feafd8"
     },
     {
       "id": "scent",
-      "version": "6e72cd06bf422a29e93148cf4edaddd98d937392",
-      "capabilities": ["context-pack"],
+      "version": "8c066cf454df9a4acd58d4d354fff7077e9e416d",
+      "capabilities": [
+        "context-pack"
+      ],
       "command": "scent",
       "binaryEnvironment": "KUJO_SCENT_BIN",
       "entrypointEnvironment": "KUJO_SCENT_ENTRY",
       "relativeEntrypoint": "scent/scent.kujo",
-      "sha256": "01c16d6dfe3db280c5fc9a0ab689dc6de288f749daac17c9acadbb898f174f98"
+      "sha256": "723875a9ca421c378b64640911d8c4b4b60ada4824df2146d740ef57311e9c03",
+      "package": "scent",
+      "packageVersion": "1.0.0",
+      "minimumKujoVersion": "1.4.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "d0bf9663a81c91be0bf0e75349a3bd93ae648d98ffdfbe683df625077ca15ca5",
+      "provenanceSha256": "b37d323a9ac1f0402ca45f4652cb4a8f4a78d226664c5ca052fd64399da33d61"
     },
     {
       "id": "patchbrief",
-      "version": "1e9ada307f16138dc705a32619cda11a0206d9c2",
-      "capabilities": ["change-review"],
+      "version": "76adc15975c1c826a1ae59134cdb21905f6c3c48",
+      "capabilities": [
+        "change-review"
+      ],
       "command": "patchbrief",
       "binaryEnvironment": "KUJO_PATCHBRIEF_BIN",
       "entrypointEnvironment": "KUJO_PATCHBRIEF_ENTRY",
       "relativeEntrypoint": "patchbrief/patchbrief.kujo",
-      "sha256": "b373171cf9766da4aea25162555206f9c909f7e1b37d072a0013add353c982e7"
+      "sha256": "510e7880c9002fa0d630f0377440803b2b1dfb9f818633eb47d1daf058521645",
+      "package": "patchbrief",
+      "packageVersion": "1.0.1",
+      "minimumKujoVersion": "0.1.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "c2e364b37254d2d98a69a0e305ce70c3162504f521c1d31deba5cff677168437",
+      "provenanceSha256": "f4e3a5b94c073b33b1a9ec4d62aad06e98907653695150759426ce2ff35e7b36"
     },
     {
       "id": "changebucket",
-      "version": "6fcaf41e7ca6c317ebb3b3408b4d185e76fb1640",
-      "capabilities": ["change-footprint"],
+      "version": "030eea63c60449f82c9ba2680227485d318fdb6d",
+      "capabilities": [
+        "change-footprint"
+      ],
       "command": "changebucket",
       "binaryEnvironment": "KUJO_CHANGEBUCKET_BIN",
       "entrypointEnvironment": "KUJO_CHANGEBUCKET_ENTRY",
       "relativeEntrypoint": "changebucket/changebucket.kujo",
-      "sha256": "74613364f008c52238aaeb89db99076229bca83a1e9ace50ee2b7037f179a9fd"
+      "sha256": "74613364f008c52238aaeb89db99076229bca83a1e9ace50ee2b7037f179a9fd",
+      "package": "changebucket",
+      "packageVersion": "1.1.0",
+      "minimumKujoVersion": "1.4.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "e3ea1e7c568b41ea05488416b5488af39fde83a940e67bc4f0e73f3f72cc1b54",
+      "provenanceSha256": "a8925ffc88554b5a8b50cce0cc588477fcaade6e903c3105adeeaa7c884995f7"
     },
     {
       "id": "shipcheck",
-      "version": "4c958ab18d8a48b22d6a116f7074e1abd7f85d69db25bbbce1383200fa9cb061",
-      "capabilities": ["release-readiness"],
+      "version": "2768e3040e766b0befd354db4427afc4c7a81899",
+      "capabilities": [
+        "release-readiness"
+      ],
       "command": "shipcheck",
       "binaryEnvironment": "KUJO_SHIPCHECK_BIN",
       "entrypointEnvironment": "KUJO_SHIPCHECK_ENTRY",
       "relativeEntrypoint": "shipcheck/shipcheck.kujo",
-      "sha256": "f0cc14f6178d48b22d6a116f7074e1abd7f85d69db25bbbce1383200fa9cb061"
+      "sha256": "a53a2f6fd62df6930b0f2d643505641e48e6da3b3862acd0540f57c877ae12ce",
+      "package": "shipcheck",
+      "packageVersion": "1.0.0",
+      "minimumKujoVersion": "0.1.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "8a8b4b9ce48e5ebb5baf5df2a87c8434c68405abd8b9367a9bf90b4453d38ad9",
+      "provenanceSha256": "66a4262377b5927b74ef3b3a6ebd89220f265a3d1514754b977fbc63f88a6553"
     },
     {
       "id": "mcp",
-      "version": "2ab8111f2c5174841204f5c762d8ce8d281e57b6",
-      "capabilities": ["mcp-generation"],
+      "version": "83e4d62b0a04477f3208756a77671da765964753",
+      "capabilities": [
+        "mcp-generation"
+      ],
       "command": null,
-      "binaryEnvironment": null,
+      "binaryEnvironment": "KUJO_MCP_BIN",
       "entrypointEnvironment": "KUJO_MCP_ENTRY",
       "relativeEntrypoint": "mcp/mcp.kujo",
-      "sha256": "bb3862ffc9fb2180ca0eaa3dbe7776253d0c99416c248e747282f2e9f5867a34"
+      "sha256": "bb3862ffc9fb2180ca0eaa3dbe7776253d0c99416c248e747282f2e9f5867a34",
+      "package": "mcp",
+      "packageVersion": "1.3.0",
+      "minimumKujoVersion": "1.7.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "96edf0bf36c59d38f8781f9837364301ba837eafdb3c6402b121c51537c18809",
+      "provenanceSha256": "b3e861f754e5df5d82a9535003e62e83b2e6206b27ac4a7b1816a737350f8bb1"
     },
     {
       "id": "dispatch",
-      "version": "662417c264bd55f8d802eef3fc21f9f372590753",
-      "capabilities": ["workflow-orchestration"],
+      "version": "7558d0b2157449a484646d9a4b0d069a70c36f85",
+      "capabilities": [
+        "workflow-orchestration"
+      ],
       "command": null,
-      "binaryEnvironment": null,
+      "binaryEnvironment": "KUJO_DISPATCH_BIN",
       "entrypointEnvironment": "KUJO_DISPATCH_ENTRY",
       "relativeEntrypoint": "dispatch/dispatch.kujo",
-      "sha256": "aafb17a79a5dfb06555e478f21fa6a61ce6b8652f175735e6792afae3f679064"
+      "sha256": "3101d6b5ad3ec9eb4281c13a2610645c1a276a9a1d9a66bdf6923dfa0752b7f2",
+      "package": "dispatch",
+      "packageVersion": "1.3.0",
+      "minimumKujoVersion": "1.6.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "e329d5a2d23c4d9026ae89a2f50469052c00061b5d2a89911de5faa784d59e79",
+      "provenanceSha256": "5a0621a15e0368feedd729c936d3520d32c4d77da393e5500d5f62ee9219ce33"
     },
     {
       "id": "agents",
-      "version": "d3904d348754b492bda298b6c30f49c1eb24b7ea",
-      "capabilities": ["agent-fixtures"],
+      "version": "5a9d5525e511a293b743b1c44d9ef270fd491f9f",
+      "capabilities": [
+        "agent-fixtures"
+      ],
       "command": null,
-      "binaryEnvironment": null,
+      "binaryEnvironment": "KUJO_AGENTS_SMOKE_BIN",
       "entrypointEnvironment": "KUJO_AGENTS_SMOKE_ENTRY",
       "relativeEntrypoint": "agents-sdk/examples/examples_smoke_runner.kujo",
-      "sha256": "04ce7885175168be67bab554b9d6e2c1eb12667b42f15537c73c9bf4b61d052a"
+      "sha256": "04ce7885175168be67bab554b9d6e2c1eb12667b42f15537c73c9bf4b61d052a",
+      "package": "agents-sdk",
+      "packageVersion": "1.1.2",
+      "minimumKujoVersion": "1.6.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "a03136b9a27ba4ecc307ca8344018a7f004f064cd08b36e532a5fa6d6f04ae95",
+      "provenanceSha256": "55b8492b0665b96e9dafc5e07c5d283d70b3bed20a2628b1a37cc5711debcdcc"
     },
     {
       "id": "rag",
-      "version": "28690e3aa1b7a5947616843574cacf03b32905c9",
-      "capabilities": ["retrieval"],
+      "version": "667af5bfa6a57a3c6e0788d1603f43e652a54864",
+      "capabilities": [
+        "retrieval"
+      ],
       "command": null,
-      "binaryEnvironment": null,
+      "binaryEnvironment": "KUJO_RAG_BIN",
       "entrypointEnvironment": "KUJO_RAG_ENTRY",
       "relativeEntrypoint": "rag/main.kujo",
-      "sha256": "4fa84a3cf75bd4c85c6e4f315a1b02cdb7cc526343d2704f10fc034881bab653"
+      "sha256": "4fa84a3cf75bd4c85c6e4f315a1b02cdb7cc526343d2704f10fc034881bab653",
+      "package": "rag",
+      "packageVersion": "1.0.0",
+      "minimumKujoVersion": "0.1.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "ce0241974951c82daaa5d70842873c726d1e402df5f724f60ba9d97319905eeb",
+      "provenanceSha256": "578f778efd8248b611bf5a7ff571db38d9e5c62757041d446c535b73cb5a8c2c"
     },
     {
       "id": "runledger",
-      "version": "12bbf2b3723325913eb75ececaba0ce3fdc68b87",
-      "capabilities": ["run-receipts"],
+      "version": "88fb37c81567bb94e1e341037514fe37cbafa76f",
+      "capabilities": [
+        "run-receipts"
+      ],
       "command": "runledger",
       "binaryEnvironment": "KUJO_RUNLEDGER_BIN",
       "entrypointEnvironment": "KUJO_RUNLEDGER_ENTRY",
       "relativeEntrypoint": "runledger/runledger.kujo",
-      "sha256": "a8bd71847bc4583d8c80fd1f4701a59e582d4ac4b2b13eb26cbb9db3ecf9bed6"
+      "sha256": "a8bd71847bc4583d8c80fd1f4701a59e582d4ac4b2b13eb26cbb9db3ecf9bed6",
+      "package": "runledger",
+      "packageVersion": "1.2.0",
+      "minimumKujoVersion": "1.6.0",
+      "platforms": [
+        "darwin",
+        "linux"
+      ],
+      "archiveSha256": "a560a0a844b54f29b7e4909b264351fae4daea6aa3d5c04eba2ed6f33bcbcf16",
+      "provenanceSha256": "be161351e202a5278198a9df8baed7c05b014b62bc725743d2c2b762272a6291"
     }
-  ]
+  ],
+  "installation": {
+    "runtimeVersion": "1.8.1",
+    "kennelVersion": "1.1.1",
+    "kennelInstallerUrl": "https://kennel.kujolang.ai/install.kujo",
+    "kennelInstallerSha256": "2444835c54d971d521906a3f5107c3c23f95c69c3e21c9cf6dbe5311ce7eaf91"
+  }
 }

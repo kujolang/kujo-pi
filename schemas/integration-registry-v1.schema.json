@@ -3,30 +3,132 @@
   "$id": "https://kujolang.org/schemas/pi/integration-registry-v1.schema.json",
   "title": "Kujo Pi integration registry v1",
   "type": "object",
-  "required": ["schemaVersion", "registryVersion", "issuedAt", "ecosystemRootEnvironment", "integrations"],
+  "required": [
+    "schemaVersion",
+    "registryVersion",
+    "issuedAt",
+    "ecosystemRootEnvironment",
+    "integrations"
+  ],
   "properties": {
-    "schemaVersion": { "const": "kujo.pi.integration-registry.v1" },
-    "registryVersion": { "const": 1 },
-    "issuedAt": { "type": "string", "format": "date-time" },
-    "ecosystemRootEnvironment": { "const": "KUJO_ECOSYSTEM_ROOT" },
+    "schemaVersion": {
+      "const": "kujo.pi.integration-registry.v1"
+    },
+    "registryVersion": {
+      "const": 1
+    },
+    "issuedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ecosystemRootEnvironment": {
+      "const": "KUJO_ECOSYSTEM_ROOT"
+    },
     "integrations": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "version", "capabilities", "command", "binaryEnvironment", "entrypointEnvironment", "relativeEntrypoint", "sha256"],
+        "required": [
+          "id",
+          "version",
+          "capabilities",
+          "command",
+          "binaryEnvironment",
+          "entrypointEnvironment",
+          "relativeEntrypoint",
+          "sha256"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "version": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
-          "capabilities": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-          "command": { "type": ["string", "null"] },
-          "binaryEnvironment": { "type": ["string", "null"] },
-          "entrypointEnvironment": { "type": "string", "pattern": "^KUJO_[A-Z0-9_]+$" },
-          "relativeEntrypoint": { "type": "string", "minLength": 1 },
-          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+          },
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "binaryEnvironment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entrypointEnvironment": {
+            "type": "string",
+            "pattern": "^KUJO_[A-Z0-9_]+$"
+          },
+          "relativeEntrypoint": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "package": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "string"
+          },
+          "minimumKujoVersion": {
+            "type": "string"
+          },
+          "archiveSha256": {
+            "type": "string"
+          },
+          "provenanceSha256": {
+            "type": "string"
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
         "additionalProperties": false
       }
+    },
+    "installation": {
+      "type": "object",
+      "required": [
+        "runtimeVersion",
+        "kennelVersion",
+        "kennelInstallerUrl",
+        "kennelInstallerSha256"
+      ],
+      "properties": {
+        "runtimeVersion": {
+          "type": "string"
+        },
+        "kennelVersion": {
+          "type": "string"
+        },
+        "kennelInstallerUrl": {
+          "type": "string"
+        },
+        "kennelInstallerSha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
