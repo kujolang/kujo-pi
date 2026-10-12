@@ -14,6 +14,14 @@ const piBinary = process.env.KUJO_PI_BINARY || resolve("node_modules", "@earendi
 mkdirSync(profile);
 mkdirSync(workspace);
 mkdirSync(packageOutput);
+if (process.env.KUJO_PI_CONSUMER === "1") {
+  execFileSync("git", ["init", "--quiet"], { cwd: workspace });
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(join(workspace, "README.md"), "# Consumer fixture\n");
+  execFileSync("git", ["add", "README.md"], { cwd: workspace });
+  execFileSync("git", ["-c", "user.name=Kujo Pi acceptance", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "fixture"], { cwd: workspace });
+  writeFileSync(join(workspace, "README.md"), "# Consumer fixture\nA real change.\n");
+}
 
 let source = process.env.KUJO_PI_PACKAGE_SOURCE;
 if (!source) {
@@ -22,13 +30,15 @@ if (!source) {
     shell: process.platform === "win32",
   }))[0];
   source = join(packageOutput, packed.filename);
+} else if (source.endsWith(".tgz")) {
+  source = resolve(source);
 }
 if ((source.startsWith(".") || isAbsolute(source)) && !existsSync(resolve(source))) {
   throw new Error(`KUJO_PI_PACKAGE_SOURCE does not exist: ${source}`);
 }
 let installSource = source;
 if (source.endsWith(".tgz")) {
-  execFileSync(npmCommand, ["install", "--prefix", isolatedInstall, "--ignore-scripts", "--no-package-lock", "--legacy-peer-deps", source], {
+  execFileSync(npmCommand, ["install", "--prefix", isolatedInstall, "--ignore-scripts", "--no-package-lock", ...(process.env.KUJO_PI_CONSUMER === "1" ? [] : ["--legacy-peer-deps"]), source], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     shell: process.platform === "win32",
@@ -128,6 +138,11 @@ try {
   const active = await command("/kujo active", "Active Kujo tools:");
   assert.match(active.message, /kujo_scout/);
   assert.match(active.message, /kujo_scent/);
+  if (process.env.KUJO_PI_CONSUMER === "1") {
+    const demo = await command("/kujo demo", "Kujo demo:");
+    assert.match(demo.message, /Kujo demo: success/);
+    assert.match(demo.message, /README\.md/, "demo must analyze the real workspace change through installed discovery");
+  }
 } finally {
   if (child.exitCode === null) child.kill("SIGTERM");
   await childClosed;

@@ -2,7 +2,7 @@
 
 Kujo Pi adds optional Kujo tools to [Pi](https://pi.dev/). It gives Pi a local-first way to inspect repositories, prepare agent context, review changes, run guarded checks, and connect to Kujo services when you choose to configure them.
 
-It does not replace Pi, install the Kujo runtime, start background daemons, or contact a service during startup.
+It does not replace Pi, start background daemons, or contact a service during startup. Runtime installation is an explicit, approved setup action.
 
 ## Is it usable today?
 
@@ -78,9 +78,57 @@ You can install globally instead:
 pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
-## Prerequisites
+## Released toolchain setup
 
-Install the Kujo CLI separately and make sure it is on `PATH`:
+No contributor checkout is needed. In a trusted Git repository with a change:
+
+```text
+/kujo setup review
+/kujo setup plan review
+/kujo setup install review
+/kujo demo
+```
+
+The read-only summary reports available, missing, mismatched and unsupported integrations. The preview includes exact versions, archive/provenance identities, commands, write locations and network destinations. Interactive installation displays that plan for confirmation. Denial makes no changes. The demo measures your real working-tree change using ChangeBucket, without an API key or model call.
+
+Setup installs Kujo runtime 1.8.1, Kennel 1.1.1, and the signed pack versions under `~/.local/share/kujo-pi`. Set an absolute `KUJO_PI_HOME` to choose another dedicated directory; paths with spaces are supported. Avoid symlinks and directories writable by other users. Setup uses the released npm runtime and Kennel tool lifecycle; it does not require the broader contributor installer profile.
+
+| Pack | Released tools installed | Additional configuration |
+|---|---|---|
+| understand | Scout, Scent | Repository to inspect |
+| review | PatchBrief, ChangeBucket | Git repository with changes |
+| ship | ShipCheck, RunLedger | Project check configuration |
+| orchestrate | Dispatch, Agents SDK | Dispatch provider credentials, or explicit `DISPATCH_OFFLINE_FIXTURE=true`; existing bounded adapters |
+| extend | MCP, RAG | RAG index/provider; Ability gateway configured separately |
+| observe | None | Explicit Watchdog/Leash URLs and credentials |
+
+Tool installation is separate from activation: `/kujo enable <pack>` enables its Pi tools. Installing Extend does not create a RAG index or authorize a gateway. Installing Observe never starts services.
+
+The Pi extension supports macOS/Linux/Windows. Managed Kennel installation supports macOS/Linux; use WSL on Windows. This platform limit is shown before installation, and does not prevent the core extension from loading. Explicit binary/entrypoint overrides remain available for supported custom installations.
+
+For headless setup, run the packaged executable in the environment inherited by Pi:
+
+```bash
+npx --package=@kujolang/kujo-pi kujo-pi-setup plan review
+# Review the JSON, then copy its digest into the following command:
+npx --package=@kujolang/kujo-pi kujo-pi-setup apply review --approve-plan <digest>
+```
+
+The digest binds the pack, versions, destinations and commands. Changes require a fresh preview and approval. Nothing installs at startup or merely by asking for the plan. npm and Kennel use their normal package caches; the private toolchain and setup receipt live under `KUJO_PI_HOME`. Network access is needed for an approved installation, including pinned tool dependencies.
+
+Discovery precedence is explicit `*_BIN`, explicit `*_ENTRY`, private Kennel installation, PATH command, then checksum-verified ecosystem checkout. Runtime precedence is `KUJO_BIN`, the managed runtime, then PATH. Explicit overrides are user trust decisions, not verified release identities. Managed discovery verifies Kennel's recorded archive/provenance identity and the signed entrypoint checksum; it is not a continuous hash audit of every installed dependency.
+
+### Upgrade, rollback and removal
+
+Upgrade Kujo Pi through Pi's package manager, preview the new pack plan, then approve it. Before upgrading a working private toolchain, copy its dedicated `KUJO_PI_HOME` directory as a backup. To roll back, stop Pi and setup processes, restore that backup at its original absolute path, and reinstall the matching Kujo Pi version. Kennel records absolute module paths, so moving a backup alone is insufficient. To remove managed tools, stop their processes and remove only the dedicated toolchain directory after reviewing its path. Pi settings, unrelated commands and shell profiles are unaffected.
+
+Failed setup leaves completed steps available for inspection and retry; it is not an atomic multi-package transaction. A concurrent installer is rejected by `.setup.lock`. After an interrupted process, confirm that its recorded PID is no longer running before removing that lock. Review any `.installer.download` or `.setup-receipt.tmp` file before cleanup. Do not delete another live installer's state.
+
+First useful result within five minutes is a product target, not a measured human-onboarding guarantee. `npm run test:consumer` checks clean installation, normal peer resolution and a real packaged Pi workflow; it explicitly downloads released tools.
+
+## Existing installations
+
+You can continue using a separately installed Kujo CLI:
 
 ```bash
 kujo --version
@@ -240,7 +288,8 @@ Set these variables in the environment inherited by Pi. Do not put secrets in `.
 
 | Variable | Purpose |
 |---|---|
-| `KUJO_BIN` | Kujo runtime executable; default `kujo` |
+| `KUJO_BIN` | Explicit Kujo runtime; otherwise private runtime, then PATH |
+| `KUJO_PI_HOME` | Absolute dedicated managed toolchain directory |
 | `KUJO_ECOSYSTEM_ROOT` | Discover and verify canonical entrypoints through the signed registry |
 | `KUJO_SCOUT_BIN` / `KUJO_SCOUT_ENTRY` | Scout executable or `.kujo` entrypoint |
 | `KUJO_SCENT_BIN` / `KUJO_SCENT_ENTRY` | Scent executable or `.kujo` entrypoint |

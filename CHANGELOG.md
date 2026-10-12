@@ -2,7 +2,20 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
-## Unreleased
+## 1.2.0 - 2026-10-12
+
+### Added
+
+- Explicit versioned setup previews and approval-bound installation of private released Kujo/Kennel tools, without ecosystem checkouts.
+- Pack readiness diagnostics, a headless digest-approved setup CLI, and a credential-free `/kujo demo` change-footprint workflow.
+- Fresh consumer acceptance using normal npm peer resolution, packaged setup, signed discovery and a real Pi operation; the release artifact must pass this gate.
+
+### Fixed
+
+- Preserve Dispatch, MCP and RAG binary arguments and align Scent, ChangeBucket and ShipCheck commands with their released CLIs.
+- Refresh the signed integration registry to a released cohort, including Kennel archive/provenance identities and isolated module discovery.
+- Rotate the unavailable original registry signing key in a separate change; see the registry documentation for trust-root fingerprints and custody.
+
 
 ### Changed
 

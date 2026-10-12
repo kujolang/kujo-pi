@@ -1,6 +1,6 @@
 # Kujo Pi
 
-[![Version](https://img.shields.io/badge/version-1.1.0-black)](https://github.com/kujolang/kujo-pi/releases/tag/v1.1.0)
+[![Version](https://img.shields.io/badge/version-1.2.0-black)](https://github.com/kujolang/kujo-pi/releases/tag/v1.2.0)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![built with Kujo](https://img.shields.io/badge/built%20with-Kujo-white.svg)](https://github.com/kujolang/kujo)
 [![CI](https://github.com/kujolang/kujo-pi/actions/workflows/ci.yml/badge.svg)](https://github.com/kujolang/kujo-pi/actions)
@@ -41,18 +41,22 @@ pi install -l git:github.com/kujolang/kujo-pi@<full-commit-sha>
 pi install git:github.com/kujolang/kujo-pi@<full-commit-sha>
 ```
 
-The Kujo CLI must be installed separately and available on `PATH` unless `KUJO_BIN` points to it. Set `KUJO_ECOSYSTEM_ROOT` to a Kujo ecosystem checkout to let the signed registry discover and checksum canonical workflow entrypoints, or configure explicit absolute overrides. Kujo Pi never executes a same-named `.kujo` file merely because it exists in the open repository. Kujo Pi never installs Kujo, starts daemons, or contacts a remote service during startup.
+The extension stays quiet at startup. On macOS/Linux, explicitly preview and approve a private, versioned Kujo/Kennel toolchain with `/kujo setup plan review` and `/kujo setup install review`. No ecosystem source checkout is required. Existing `KUJO_BIN` and integration overrides remain supported. Setup never changes shell profiles or unrelated Pi settings.
 
 ## First use
 
-Start Pi in a trusted repository and run:
+Start Pi in a trusted Git repository with a working-tree change:
 
 ```text
-/kujo setup
-/kujo packs
+/kujo setup review
+/kujo setup plan review
+/kujo setup install review
+/kujo demo
 ```
 
-`/kujo setup` verifies the signed integration registry, reports how many local integrations are ready, and gives one next action. Task packs keep the tool list focused and survive session reloads. For example, `/kujo enable understand` enables Scout and Scent together.
+Review the exact versions, commands, network access and write locations before confirming installation. `/kujo demo` reports the actual change footprint without credentials or a model call. To prepare context instead, install and enable the `understand` pack. `/kujo setup` is read-only; installation requires the explicit `install` action and interactive approval. Headless users can use the digest-approved [setup CLI](docs/pi-onboarding.md#released-toolchain-setup).
+
+Pi core supports macOS, Linux and Windows. Managed Kennel setup supports macOS/Linux; Windows users can run those tools in WSL. See the [platform and recovery details](docs/pi-onboarding.md#released-toolchain-setup).
 
 If automatic registry discovery is not available, configure the Kujo workflow you want to use. For example:
 
