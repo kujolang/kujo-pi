@@ -24,3 +24,13 @@ assert.deepEqual(start.binary, ["start", "--provider", "unknown", "--model", "un
 assert.deepEqual(operationArguments("runledger", { action: "finish", runId: "run-1" }, cwd).binary,
   ["finish", "run-1", "--status", "partial", "--verdict", "Pi session finished", "--repo", cwd]);
 console.log("integration operation contract validation passed");
+
+for (const [operation, params, expected] of [
+  ["dispatch", { task: "review with spaces", workflow: "routed-review", output: "my reports" }, ["demo", "review with spaces", "--workflow", "routed-review", "--output-root", join(cwd, "my reports"), "--non-interactive", "--yes"]],
+  ["rag", { question: "Where are the tests?", namespace: "docs" }, ["query", "--question", "Where are the tests?", "--namespace", "docs"]],
+  ["mcp", { path: ".", artifacts: "my reports" }, ["make", cwd, "--artifacts", join(cwd, "my reports")]],
+]) {
+  const args = operationArguments(operation, params, cwd);
+  assert.deepEqual(args.binary, expected, `${operation} binary must receive the requested operation and arguments`);
+  assert.deepEqual(args.entrypoint, operation === "dispatch" ? expected : ["--interpreter", ...expected]);
+}

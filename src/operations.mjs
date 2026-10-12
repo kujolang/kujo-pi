@@ -44,10 +44,19 @@ export function operationArguments(operation, params, cwd) {
     case "review": return { binary: ["handoff"], entrypoint: ["--", "handoff"] };
     case "changebucket": return { binary: ["report", "--format", "json"], entrypoint: ["--", "report", "--format", "json"] };
     case "shipcheck": return { binary: ["check", "--format", "json"], entrypoint: ["--", "check", "--format", "json"] };
-    case "mcp": return { binary: [], entrypoint: ["--interpreter", "make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")] };
-    case "rag": return { binary: [], entrypoint: ["--interpreter", "query", "--question", params.question, ...(params.namespace ? ["--namespace", params.namespace] : [])] };
+    case "mcp": {
+      const args = ["make", workspacePath(cwd, params.path || "."), "--artifacts", workspacePath(cwd, params.artifacts || ".kujo/pi/mcp")];
+      return { binary: args, entrypoint: ["--interpreter", ...args] };
+    }
+    case "rag": {
+      const args = ["query", "--question", params.question, ...(params.namespace ? ["--namespace", params.namespace] : [])];
+      return { binary: args, entrypoint: ["--interpreter", ...args] };
+    }
     case "agents": return { binary: [], entrypoint: ["--interpreter"] };
-    case "dispatch": return { binary: [], entrypoint: ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), "--yes"] };
+    case "dispatch": {
+      const args = ["demo", params.task, "--workflow", params.workflow || "research-report", "--output-root", workspacePath(cwd, params.output || ".kujo/pi/dispatch"), "--non-interactive", "--yes"];
+      return { binary: args, entrypoint: args };
+    }
     default: throw new Error(`Unsupported Kujo operation: ${operation}`);
   }
 }
