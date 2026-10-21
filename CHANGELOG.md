@@ -2,7 +2,7 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
-## 1.2.1 - Unreleased
+## 1.2.1 - 2026-10-21
 
 ### Fixed
 
