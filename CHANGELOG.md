@@ -2,6 +2,12 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
+## 1.2.1 - Unreleased
+
+### Fixed
+
+- Require patched Node.js security releases and reserve a new package version for the changed release contents.
+
 ## 1.2.0 - 2026-10-12
 
 ### Added
