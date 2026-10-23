@@ -18,7 +18,7 @@ WDG_PORT=7700 \
 WDG_PROXY_AUTH_MODE=passthrough \
 WDG_API_AUTH_MODE=off \
 WDG_PROXY_AUTHZ_MODE=off \
-kujo run --interpreter dashboard_server.kujo
+kujo run dashboard_server.kujo
 ```
 
 For a shared or non-loopback deployment, use HTTPS and enable both token
