@@ -2,6 +2,13 @@
 
 This project follows [Semantic Versioning](https://semver.org/). Release dates use UTC.
 
+## 1.2.2 - Unreleased
+
+### Changed
+
+- Refresh Pi development dependencies and the pinned release action.
+- Reserve a new package version for changes after the 1.2.1 release.
+
 ## 1.2.1 - 2026-10-21
 
 ### Fixed
