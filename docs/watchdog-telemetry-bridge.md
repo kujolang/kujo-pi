@@ -52,8 +52,10 @@ the dashboard one run containing workflow, model, tool, and shell spans.
 
 Accepted metadata bundles are written atomically before delivery. If Watchdog is
 unavailable, later Pi events and session shutdown retry the queued files.
-Successful `2xx` intake removes a file. Permanent `4xx` rejections are retained
-with a `.rejected` suffix for bounded local diagnosis.
+Successful `2xx` intake removes a file. Permanent `4xx` rejections and invalid
+local metadata batches receive a `.rejected` suffix and remain subject to the
+retention limits. Replay checks file ownership and type, limits the bytes it
+reads, and validates metadata before sending. Doctor counts quarantined batches.
 
 Defaults:
 

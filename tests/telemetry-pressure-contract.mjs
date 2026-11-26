@@ -95,7 +95,9 @@ try {
   await bridge.spool.flush();
   assert.equal(bridge.spool.pendingBatches, 0);
   assert.equal(bridge.spool.pendingBytes, 0);
-  assert.equal((await bridge.spool.files()).length, 10);
+  const retained = await fs.readdir(bridge.spool.directory);
+  assert.equal(retained.filter(name => name.endsWith(".json.rejected")).length, 10, "invalid pressure fixtures stay quarantined within the retention budget");
+  assert.equal((await bridge.spool.files()).length, 0);
   // Byte capacity applies independently of batch count, using UTF-8 bytes.
   bridge.spool.writeChain = new Promise(resolve => { release = resolve; });
   for (let i = 0; i < 3; i++) void bridge.spool.append({ data: "é".repeat(15_000) });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PiTelemetryBridge, TELEMETRY_SCHEMA_VERSION, classifyCommand, telemetryConfig, toolSpanKind } from "../src/telemetry.mjs";
@@ -97,6 +97,27 @@ const packageVersion = JSON.parse(await readFile(new URL("../package.json", impo
 assert.ok(delivered.every(payload => payload.producer.version === packageVersion), "telemetry producer version must match the released package");
 assert.ok(delivered.every(payload => payload.records.every(record => record.privacy.content_mode === "off")));
 assert.ok(delivered.some(payload => payload.records.some(record => record.record_type === "span" && record.kind === "execution")));
+
+const replay = new PiTelemetryBridge({ environment, fetchImpl: bridge.spool.fetchImpl });
+await replay.spool.initialize();
+const older = structuredClone(delivered[0]);
+older.producer.version = "1.2.1";
+const changed = structuredClone(older);
+changed.records[0].content = [{ text: "fixture content" }];
+const recent = delivered.length;
+const local = name => join(replay.spool.directory, `0000000000001100-${name}.json`);
+await writeFile(local("legacy"), JSON.stringify(older));
+await writeFile(local("unapproved"), JSON.stringify(changed));
+await writeFile(local("oversized"), "x".repeat(70_000));
+await writeFile(join(replay.spool.directory, "unowned.json"), JSON.stringify(older));
+if (process.platform !== "win32") await symlink(local("legacy"), local("linked"));
+await replay.spool.flush();
+assert.deepEqual(delivered.slice(recent), [older], "replay keeps old metadata batches and withholds other payloads");
+assert.equal(replay.spool.diagnostics().quarantinedBatches, 2);
+for (const name of ["unapproved", "oversized"]) assert.ok((await lstat(`${local(name)}.rejected`)).isFile());
+assert.ok((await lstat(join(replay.spool.directory, "unowned.json"))).isFile());
+if (process.platform !== "win32") assert.ok((await lstat(local("linked"))).isSymbolicLink());
+
 await bridge.startRun();
 await bridge.startSession({ sessionId: "untrusted-after-trusted", workspace: rawWorkspace, trusted: false });
 assert.equal(bridge.enabled, false, "a reused bridge must revoke telemetry on an untrusted session");

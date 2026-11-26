@@ -1,15 +1,16 @@
 // @ts-check
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { link, open, readFile, readdir, rename, stat, unlink } from "node:fs/promises";
+import { link, lstat, mkdir, open, readdir, rename, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { sameOriginUrl } from "./core.mjs";
-import { recoverSpoolTemporaries, temporarySpoolPath } from "./telemetry-files.mjs";
+import { isMetadataBatch, isSpoolBatchName, readSpoolFile, recoverSpoolTemporaries, temporarySpoolPath } from "./telemetry-files.mjs";
 
 export const TELEMETRY_SCHEMA_VERSION = "watchdog.telemetry.v2";
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 2_000;
 const DEFAULT_TIMEOUT_MS = 2_000;
+const BATCH_CHAR_LIMIT = 64_000;
 
 /** @param {string|undefined} value @param {number} fallback @param {number} minimum @param {number} maximum */
 function boundedInteger(value, fallback, minimum, maximum) {
@@ -178,6 +179,7 @@ class TelemetrySpool {
     this.pendingBytes = 0;
     this.droppedBatches = 0;
     this.writeFailures = 0;
+    this.quarantinedBatches = 0;
     this.recoveredTemporaries = 0;
     this.deferredTemporaries = 0;
   }
@@ -185,22 +187,25 @@ class TelemetrySpool {
   diagnostics() {
     return {
       pendingBatches: this.pendingBatches, pendingBytes: this.pendingBytes,
-      droppedBatches: this.droppedBatches, writeFailures: this.writeFailures,
+      droppedBatches: this.droppedBatches, writeFailures: this.writeFailures, quarantinedBatches: this.quarantinedBatches,
       recoveredTemporaries: this.recoveredTemporaries, deferredTemporaries: this.deferredTemporaries,
     };
   }
 
   async initialize() {
     if (this.initialized) return;
-    const { mkdir } = await import("node:fs/promises");
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    const info = await lstat(this.directory);
+    if (!info.isDirectory() || (process.getuid && (info.uid !== process.getuid() || (info.mode & 0o022)))) {
+      throw Error("Telemetry spool must be a private, user-owned directory");
+    }
     const recovery = await recoverSpoolTemporaries(this.directory);
     this.recoveredTemporaries += recovery.recovered;
     this.deferredTemporaries += recovery.deferred;
     const saltPath = join(this.directory, "salt");
     const readSalt = async () => {
-      const salt = await readFile(saltPath);
-      if (salt.length !== 32) throw new Error("Telemetry project salt must contain exactly 32 bytes");
+      const salt = await readSpoolFile(saltPath, 32);
+      if (salt?.length !== 32) throw new Error("Telemetry project salt must contain exactly 32 bytes in a regular file");
       return salt;
     };
     try {
@@ -237,7 +242,7 @@ class TelemetrySpool {
     let body;
     try {
       body = JSON.stringify(payload);
-      if (body.length > 64_000) throw new Error("Telemetry payload exceeds 64000 characters");
+      if (body.length > BATCH_CHAR_LIMIT) throw new Error("Telemetry payload exceeds 64000 characters");
     } catch (error) {
       this.writeFailures += 1;
       this.lastError = String(error);
@@ -282,16 +287,19 @@ class TelemetrySpool {
 
   async files() {
     await this.initialize();
-    return (await readdir(this.directory)).filter((name) => name.endsWith(".json")).sort();
+    return (await readdir(this.directory, { withFileTypes: true })).filter(entry => entry.isFile() && isSpoolBatchName(entry.name)).map(entry => entry.name).sort();
   }
 
   async prune() {
-    const files = (await readdir(this.directory)).filter((name) => name.endsWith(".json") || name.endsWith(".rejected")).sort();
+    const files = (await readdir(this.directory, { withFileTypes: true })).filter(entry => entry.isFile() &&
+      isSpoolBatchName(entry.name.replace(/\.rejected$/, ""))).map(entry => entry.name).sort();
     const entries = [];
     let totalBytes = 0;
     for (const name of files) {
       try {
-        const size = (await stat(join(this.directory, name))).size;
+        const info = await lstat(join(this.directory, name));
+        if (!info.isFile()) continue;
+        const size = info.size;
         entries.push({ name, size });
         totalBytes += size;
       } catch (error) {
@@ -319,11 +327,25 @@ class TelemetrySpool {
     const endpoint = sameOriginUrl(this.config.baseUrl, "/telemetry/v2/batches");
     for (const name of await this.files()) {
       const path = join(this.directory, name);
-      let body;
-      try { body = await readFile(path, "utf8"); }
+      let bytes;
+      try { bytes = await readSpoolFile(path, Math.min(this.config.maxBytes, BATCH_CHAR_LIMIT * 4)); }
       catch (error) {
         if (isMissingFile(error)) continue;
         throw error;
+      }
+      let payload;
+      const stored = bytes?.toString("utf8");
+      if (stored && stored.length <= BATCH_CHAR_LIMIT) {
+        try { payload = JSON.parse(stored); } catch { /* Quarantine invalid local data. */ }
+      }
+      if (!isMetadataBatch(payload, TELEMETRY_SCHEMA_VERSION)) {
+        this.lastError = "Invalid metadata spool entry retained for local review";
+        try {
+          await rename(path, `${path}.rejected`);
+          this.quarantinedBatches += 1;
+        }
+        catch (error) { if (!isMissingFile(error)) throw error; }
+        continue;
       }
       /** @type {Record<string, string>} */
       const headers = { "content-type": "application/json", accept: "application/json" };
@@ -335,7 +357,7 @@ class TelemetrySpool {
           method: "POST",
           redirect: "error",
           headers,
-          body,
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(this.config.timeoutMs),
         });
       } catch (error) {
