@@ -9,6 +9,13 @@ This project follows [Semantic Versioning](https://semver.org/). Release dates u
 - Refresh Pi development dependencies and the pinned release action.
 - Reserve a new package version for changes after the 1.2.1 release.
 
+### Fixed
+
+- Require approval for Scout reports and RunLedger writes. Recheck approved local command plans before execution.
+- Bound process output, isolate canonical imports, and preserve setup cancellation and receipt cleanup.
+- Validate telemetry spool entries before replay and withhold responses that echo service credentials.
+- Verify selected integration paths without hashing unrelated binaries. Bound signed registry and managed installation reads.
+
 ## 1.2.1 - 2026-10-21
 
 ### Fixed
