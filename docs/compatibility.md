@@ -2,7 +2,7 @@
 
 Kujo Pi 1.x supports maintained Node.js releases that meet the `engines` range in `package.json` and Pi versions in the declared peer-dependency range. CI tests the minimum supported Pi version and the newest published Pi version every week. A release will narrow those ranges only in a new major version unless an upstream security or correctness issue makes the old range unsafe.
 
-The declared host range includes Pi 1.x while retaining Pi 0.84.3 compatibility. Development uses Pi 1.1.0, whose Undici 8.10.2 dependency fixes the six Undici advisories affecting the previous lockfile. Use the current Pi release for the patched host; compatibility with an older host does not imply its dependencies are secure.
+The declared host range includes Pi 0.84.3 and Pi 1.x. The development lock uses Pi 1.2.0 with Undici 8.13.1 and minimatch 11.0.9. The development overrides apply when working in this repository. The installed Pi host manages its own dependencies.
 
 To verify a separately installed Pi CLI, set `KUJO_PI_BINARY` to the absolute path of its JavaScript entrypoint and run `npm run test:host` and `npm run test:fresh-profile`. Both checks use temporary profiles and workspaces.
 

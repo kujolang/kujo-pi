@@ -79,5 +79,9 @@
   },
   "bin": {
     "kujo-pi-setup": "bin/kujo-pi-setup.mjs"
+  },
+  "overrides": {
+    "minimatch": "11.0.9",
+    "undici@^8": "8.13.1"
   }
 }
