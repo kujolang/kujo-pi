@@ -69,7 +69,8 @@ if (ecosystemRoot) {
   const results = [];
   for (const [name, cwd, entry, args] of commands) {
     try {
-      const result = await runBounded(binary, ["run", entry, ...args], { cwd, env: { ...process.env, DISPATCH_OFFLINE_FIXTURE: "true", DISPATCH_ALLOW_ANY_OUTPUT_ROOT: "true", DISPATCH_ALLOW_ANY_CONFIG_PATH: "true" } });
+      const source = join(ecosystemRoot, name === "agents" ? "agents-sdk" : name);
+      const result = await runBounded(binary, ["run", entry, ...args], { cwd, env: { ...process.env, KUJO_ISOLATED_IMPORTS: "1", KUJO_MODULE_PATH: source, DISPATCH_OFFLINE_FIXTURE: "true", DISPATCH_ALLOW_ANY_OUTPUT_ROOT: "true", DISPATCH_ALLOW_ANY_CONFIG_PATH: "true" } });
       results.push({ name, ok: true, code: result.code });
     } catch (error) {
       results.push({ name, ok: false, message: error.message });

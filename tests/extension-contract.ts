@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import kujoPi, { runStreamingCommand } from "../src/extension.ts";
+import { setTimeout as delay } from "node:timers/promises";
+import { commandResult, errorResult } from "../src/core.mjs";
+import { registerKujoPi, runStreamingCommand } from "../src/extension.ts";
 import { canonicalJson, sha256 } from "../src/contracts.mjs";
 
 const tools: Array<{ name: string; renderResult?: unknown }> = [];
@@ -11,7 +13,8 @@ const commands: string[] = [];
 const commandDefinitions = new Map<string, any>();
 const handlers: string[] = [];
 const eventHandlers = new Map<string, (...args: any[]) => any>();
-const execCalls: Array<{ command: string; args: string[] }> = [];
+const execCalls: Array<{ command: string; args: string[]; environment?: NodeJS.ProcessEnv }> = [];
+let fixtureHead: string | undefined;
 const appendedEntries: Array<{ type: string; data: any }> = [];
 let execMode: "success" | "missing" | "timeout" = "success";
 let activeTools = ["read"];
@@ -22,16 +25,21 @@ const pi = {
   getActiveTools() { return [...activeTools]; },
   setActiveTools(value: string[]) { activeTools = [...value]; },
   appendEntry(type: string, data: any) { appendedEntries.push({ type, data }); },
-  async exec(command: string, args: string[]) {
-    execCalls.push({ command, args });
+  async exec(command: string, args: string[], environment?: NodeJS.ProcessEnv) {
+    execCalls.push({ command, args, environment });
     if (execMode === "missing") throw new Error("ENOENT: command not found");
     if (execMode === "timeout") throw new Error("operation timed out");
-    return { stdout: "kujo 1.2.3", stderr: "", code: 0, killed: false };
+    return { stdout: command === "git" && fixtureHead ? fixtureHead : "kujo 1.2.3", stderr: "", code: 0, killed: false };
   },
 } as any;
 
 async function main() {
-kujoPi(pi);
+registerKujoPi(pi, async (command, args, cwd, signal, timeout, onUpdate, environment) => {
+  if (command === process.execPath && args[0] === "--version") return runStreamingCommand(command, args, cwd, signal, timeout, onUpdate, environment);
+  if (signal?.aborted) return commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
+  try { return commandResult(await pi.exec(command, args, environment), command); }
+  catch (error) { return { label: command, ...errorResult(error) }; }
+});
 
 for (const name of ["kujo_tools", "kujo_doctor", "kujo_status", "kujo_scout", "kujo_dispatch_run", "kujo_runledger", "kujo_watchdog", "kujo_leash_approval"]) {
   assert.ok(tools.some((tool) => tool.name === name), `missing registered tool: ${name}`);
@@ -97,7 +105,7 @@ const doctor = await byName("kujo_doctor").execute("doctor", {}, undefined, unde
 assert.ok(performance.now() - doctorStarted < 500, "Doctor mock contract exceeded its startup budget");
 assert.equal(doctor.details.registry.signatureVerified, true);
 assert.ok(Array.isArray(doctor.details.remediations));
-assert.deepEqual(doctor.details.telemetry, { enabled: false, pendingBatches: 0, pendingBytes: 0, droppedBatches: 0, writeFailures: 0, recoveredTemporaries: 0, deferredTemporaries: 0 });
+assert.deepEqual(doctor.details.telemetry, { enabled: false, pendingBatches: 0, pendingBytes: 0, droppedBatches: 0, writeFailures: 0, quarantinedBatches: 0, recoveredTemporaries: 0, deferredTemporaries: 0 });
 process.env.KUJO_PI_MIN_KUJO_VERSION = "9.0.0";
 process.env.KUJO_WATCHDOG_URL = "http://example.com";
 process.env.KUJO_LEASH_URL = "https://leash.example.test";
@@ -174,6 +182,18 @@ const dispatchCallsBeforeDenial = execCalls.filter(({ args }) => args[0] === "ru
 const deniedDispatch = await byName("kujo_dispatch_run").execute("denied-dispatch", { task: "fixture" }, undefined, undefined, deniedCtx);
 assert.equal(deniedDispatch.details.status, "approval_required");
 assert.equal(execCalls.filter(({ args }) => args[0] === "run" && args[2] === "demo").length, dispatchCallsBeforeDenial, "denied Dispatch approval must not execute");
+const ledgerWithoutApproval = await byName("kujo_runledger").execute("missing-consent", { action: "start" }, undefined, undefined, ctx);
+assert.equal(ledgerWithoutApproval.details.status, "approval_required");
+const scoutWithoutApproval = await byName("kujo_scout").execute("missing-consent", {}, undefined, undefined, ctx);
+assert.equal(scoutWithoutApproval.details.status, "approval_required");
+fixtureHead = "a".repeat(40);
+const priorShipRuns = execCalls.filter(({ command }) => command === "fixture-shipcheck").length;
+const stale = await byName("kujo_shipcheck").execute("stale-approval", {}, undefined, undefined, {
+  ...approvedCtx, ui: { confirm: async () => { fixtureHead = "b".repeat(40); return true; } },
+});
+assert.equal(stale.details.status, "approval_required");
+assert.equal(execCalls.filter(({ command }) => command === "fixture-shipcheck").length, priorShipRuns);
+fixtureHead = undefined;
 const fixtures: Array<[string, Record<string, unknown>]> = [
   ["kujo_scout", {}],
   ["kujo_scent", { task: "fixture" }],
@@ -194,6 +214,9 @@ for (const [name, params] of fixtures) {
 await byName("kujo_dispatch_run").execute("approval-binding", { task: "binding fixture" }, undefined, undefined, approvedCtx);
 const dispatchApproval = [...appendedEntries].reverse().find(({ type, data }) => type === "kujo-approval" && data.operation === "dispatch");
 const boundDispatchCall = [...execCalls].reverse().find(({ args }) => args[0] === "run" && args[2] === "demo");
+assert.equal(boundDispatchCall?.environment?.KUJO_ISOLATED_IMPORTS, "1");
+assert.ok(Object.hasOwn(boundDispatchCall?.environment || {}, "KUJO_MODULE_PATH"));
+assert.equal(boundDispatchCall?.environment?.KUJO_MODULE_PATH, undefined);
 assert.ok(boundDispatchCall?.args.includes("--yes"), "approved Dispatch execution must carry the non-interactive confirmation flag");
 assert.equal(dispatchApproval?.data.argumentsDigest, sha256(canonicalJson(boundDispatchCall?.args)), "approval digest must bind the exact executed Dispatch arguments");
 const approvalEntry = appendedEntries.find(({ type }) => type === "kujo-approval");
@@ -202,11 +225,11 @@ assert.match(approvalEntry?.data.argumentsDigest || "", /^[a-f0-9]{64}$/);
 assert.equal(approvalEntry?.data.approvalSource, "interactive_ui");
 delete process.env.KUJO_RUNLEDGER_BIN;
 process.env.KUJO_RUNLEDGER_ENTRY = trustedEntrypoint;
-const ledgerEntry = await byName("kujo_runledger").execute("ledger-entry", { action: "start", task: "fixture" }, undefined, undefined, ctx);
+const ledgerEntry = await byName("kujo_runledger").execute("ledger-entry", { action: "start", task: "fixture", confirm: true }, undefined, undefined, ctx);
 assert.equal(ledgerEntry.details.status, "success");
 assert.deepEqual(execCalls.at(-1)?.args.slice(0, 4), ["run", realpathSync(trustedEntrypoint), "--", "start"]);
 process.env.KUJO_RUNLEDGER_BIN = process.execPath;
-await byName("kujo_runledger").execute("ledger-binary", { action: "finish", runId: "run-1" }, undefined, undefined, ctx);
+await byName("kujo_runledger").execute("ledger-binary", { action: "finish", runId: "run-1", confirm: true }, undefined, undefined, ctx);
 assert.equal(execCalls.at(-1)?.command, process.execPath);
 assert.equal(execCalls.at(-1)?.args[0], "finish");
 delete process.env.KUJO_RUNLEDGER_ENTRY;
@@ -263,6 +286,11 @@ assert.equal(watchdogFetchUrl, "http://127.0.0.1:4318/healthz");
 assert.equal(watchdogFetchOptions?.redirect, "error", "Watchdog requests must not follow redirects");
 assert.equal((watchdogFetchOptions?.headers as Record<string, string>).authorization, "Bearer fixture-token");
 assert.equal((watchdogFetchOptions?.headers as Record<string, string>)["x-kujo-audience"], "fixture-audience");
+globalThis.fetch = async () => new Response(JSON.stringify({ message: "fixture-token" }));
+const echoed = await byName("kujo_watchdog").execute("credential-echo", {}, undefined, undefined, ctx);
+assert.equal(echoed.details.ok, false);
+assert.doesNotMatch(JSON.stringify(echoed), /fixture-token/);
+assert.match(echoed.details.message, /credential; response withheld/);
 process.env.KUJO_ABILITY_GATEWAY_URL = "http://127.0.0.1:4318";
 for (const body of ["{not-json", '"' + "x".repeat(12000) + '"']) {
   globalThis.fetch = async () => new Response(body);
@@ -316,6 +344,14 @@ const cancellation = runStreamingCommand(process.execPath, ["-e", "setTimeout(()
 setTimeout(() => controller.abort(), 25);
 const cancelled = await cancellation;
 assert.equal(cancelled.status, "cancelled");
+if (process.platform !== "win32") {
+  const marker = join(ctx.cwd, "descendant-finished");
+  const ownChild = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(marker)}, "fixture"), 600)`;
+  const leader = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(ownChild)}], { stdio: "ignore" }).unref();`;
+  assert.equal((await runStreamingCommand(process.execPath, ["-e", leader], ctx.cwd, undefined, 5000, () => {})).status, "success");
+  await delay(825);
+  assert.equal(existsSync(marker), false, "owned descendants must stop when their command finishes");
+}
 console.log("extension contract validation passed");
 }
 

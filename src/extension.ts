@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { delimiter, dirname } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { createSetupPlan, setupSummary, setupHome, managedRuntime } from "./setup.mjs";
 import { applySetupPlan } from "./setup-install.mjs";
 import { CAPABILITIES, CAPABILITY_PACKS, OPTIONAL_TOOLS, capabilityByTool, capabilitySummaries, expandCapabilitySelection } from "./capabilities.mjs";
@@ -14,26 +14,20 @@ import { findExecutable, inspectIntegrations, integrationById } from "./registry
 import { presentResult } from "./presentation.mjs";
 import { operationArguments, operationContract } from "./operations.mjs";
 import { PiTelemetryBridge } from "./telemetry.mjs";
+import { terminateProcessTree } from "./process.mjs";
 
-async function exec(pi: ExtensionAPI, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void, environment?: NodeJS.ProcessEnv) {
-  const publishUpdate = (value: unknown) => { if (typeof onUpdate === "function") onUpdate(toolResult(value)); };
-  if (signal?.aborted) return commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
-  publishUpdate({ ok: true, status: "running", label: command });
-  if (onUpdate || environment) return runStreamingCommand(command, args, cwd, signal, timeout, onUpdate || (() => {}), environment);
-  try {
-    const started = Date.now();
-    const result = { ...commandResult(await pi.exec(command, args, { cwd, signal, timeout }), command), durationMs: Date.now() - started };
-    publishUpdate(result);
-    return result;
-  } catch (error) {
-    const result = { label: command, ...errorResult(error) };
-    publishUpdate(result);
-    return result;
-  }
+function exec(runner: typeof runStreamingCommand, command: string, args: string[], cwd: string, signal?: AbortSignal, timeout = 120_000, onUpdate?: (result: any) => void, environment?: NodeJS.ProcessEnv) {
+  const update = (result: any) => {
+    try { onUpdate?.(result); }
+    catch { onUpdate = undefined; } // The completed tool result remains authoritative if the UI closes.
+  };
+  if (signal?.aborted) return Promise.resolve(commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command));
+  update(toolResult({ ok: true, status: "running", label: command }));
+  return runner(command, args, cwd, signal, timeout, update, environment);
 }
 
 export function runStreamingCommand(command: string, args: string[], cwd: string, signal: AbortSignal | undefined, timeout: number, onUpdate: (result: any) => void, environment?: NodeJS.ProcessEnv) {
-  return new Promise((resolve) => {
+  return new Promise<ReturnType<typeof commandResult> | ReturnType<typeof errorResult> & { label: string }>((resolve) => {
     if (signal?.aborted) {
       const result = commandResult({ stdout: "", stderr: "", code: null, killed: true, cancelled: true }, command);
       onUpdate(toolResult(result));
@@ -49,8 +43,9 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
     let cancelled = false;
     let settled = false;
     let lastUpdate = 0;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const child = spawn(command, args, { cwd, env: environment ? { ...process.env, ...environment } : process.env, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
+    const env = { ...process.env, ...environment };
+    for (const [name, value] of Object.entries(environment || {})) if (value === undefined) delete env[name];
+    const child = spawn(command, args, { cwd, env, shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     const publish = () => {
       const now = Date.now();
       if (now - lastUpdate < 200) return;
@@ -62,26 +57,18 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
       settled = true;
       result.durationMs = Date.now() - started;
       clearTimeout(timer);
-      if (killTimer) clearTimeout(killTimer);
       signal?.removeEventListener("abort", cancel);
       onUpdate(toolResult(result));
       resolve(result);
-    };
-    const killChild = (signalName: NodeJS.Signals) => {
-      try {
-        if (process.platform !== "win32" && child.pid) process.kill(-child.pid, signalName);
-        else child.kill(signalName);
-      } catch {
-        // The process may have exited between timeout/cancellation and cleanup.
-      }
     };
     const terminate = (reason: "timeout" | "cancelled") => {
       if (settled || killed) return;
       killed = true;
       timedOut = reason === "timeout";
       cancelled = reason === "cancelled";
-      killChild("SIGTERM");
-      killTimer = setTimeout(() => killChild("SIGKILL"), 1_000);
+      terminateProcessTree(child, "SIGKILL");
+      child.stdout.destroy();
+      child.stderr.destroy();
     };
     const cancel = () => terminate("cancelled");
     const timer = setTimeout(() => terminate("timeout"), timeout);
@@ -96,6 +83,7 @@ export function runStreamingCommand(command: string, args: string[], cwd: string
       if (stderr.length <= maxChars) { stderr += chunk.slice(0, maxChars + 1 - stderr.length); publish(); }
     });
     child.on("error", (error) => finish({ label: command, ...errorResult(error) }));
+    if (process.platform !== "win32") child.once("exit", () => terminateProcessTree(child, "SIGKILL"));
     child.on("close", (code) => finish(commandResult({ stdout, stderr, code, killed, timedOut, cancelled }, command)));
   });
 }
@@ -200,8 +188,17 @@ function serviceHeaders(prefix: string) {
   return headers;
 }
 
-async function abilityResponse(response: Response) {
+async function serviceBody(response: Response, headers: Record<string, string>) {
   const raw = await boundedResponse(response);
+  const credential = headers.authorization?.slice("Bearer ".length);
+  if (credential && [credential, JSON.stringify(credential).slice(1, -1)].some(value => raw.includes(value))) {
+    throw Error("Service echoed its credential; response withheld");
+  }
+  return raw;
+}
+
+async function abilityResponse(response: Response, headers: Record<string, string>) {
+  const raw = await serviceBody(response, headers);
   try { return { valid: true, body: JSON.parse(raw) }; }
   catch { return { valid: false, body: { ok: false, status: "invalid_response", message: "Ability gateway returned non-JSON" } }; }
 }
@@ -217,20 +214,36 @@ function integrationTarget(registry: ReturnType<typeof inspectIntegrations> | nu
 export function commandFor(operation: string, params: any, cwd: string, registry: ReturnType<typeof inspectIntegrations> | null): [string, string[], NodeJS.ProcessEnv?] {
   const entry = (name: string) => process.env[name];
   const requiredEntry = (name: string) => configuredEntrypoint(entry(name), name);
-  const cli = (name: string, fallback: string, args: string[]) => [entry(name) || fallback, args] as [string, string[]];
   const privateRuntime = managedRuntime(setupHome());
   const kujo = entry("KUJO_BIN") || (existsSync(privateRuntime) ? privateRuntime : findExecutable("kujo") || "kujo");
+  const isolatedEnvironment = { KUJO_MODULE_PATH: undefined, KUJO_ISOLATED_IMPORTS: "1", KUJO_SCRIPT_ARGS_JSON: undefined, KUJO_SCRIPT_ARGS: undefined };
+  const entryEnvironment = (entrypoint: string) => {
+    let directory = dirname(entrypoint);
+    while (directory !== dirname(directory)) {
+      if (existsSync(join(directory, "kennel.toml"))) {
+        if (directory.includes(delimiter)) throw Error("Integration module root cannot contain the path-list separator");
+        return { ...isolatedEnvironment, KUJO_MODULE_PATH: directory };
+      }
+      directory = dirname(directory);
+    }
+    return isolatedEnvironment;
+  };
   const resolved = (id: string, binaryEnv: string, entryEnv: string, binaryArgs: string[], entryArgs: string[]) => {
     const overrideBinary = entry(binaryEnv);
-    if (overrideBinary) return [overrideBinary, binaryArgs] as [string, string[]];
-    if (entry(entryEnv)) return [kujo, ["run", requiredEntry(entryEnv), ...entryArgs]] as [string, string[]];
+    if (overrideBinary) return [overrideBinary, binaryArgs, isolatedEnvironment] as [string, string[], NodeJS.ProcessEnv];
+    if (entry(entryEnv)) {
+      const entrypoint = requiredEntry(entryEnv);
+      return [kujo, ["run", entrypoint, ...entryArgs], entryEnvironment(entrypoint)] as [string, string[], NodeJS.ProcessEnv];
+    }
     const managed = registry ? integrationById(registry, id) : null;
     if (managed?.source === "kennel" && managed.available) {
-      return [kujo, ["run", managed.entrypointPath, "--interpreter", "--isolated-imports", "--", ...binaryArgs], { ...(id === "dispatch" ? { DISPATCH_ROOT: dirname(managed.entrypointPath) } : {}), KUJO_MODULE_PATH: managed.modulePaths.join(delimiter), KUJO_ISOLATED_IMPORTS: "1", KUJO_BIN: kujo, KUJO_SCRIPT_ARGS_JSON: undefined, KUJO_SCRIPT_ARGS: undefined }] as [string, string[], NodeJS.ProcessEnv];
+      return [kujo, ["run", managed.entrypointPath, "--interpreter", "--isolated-imports", "--", ...binaryArgs], { ...(id === "dispatch" ? { DISPATCH_ROOT: dirname(managed.entrypointPath) } : {}), ...isolatedEnvironment, KUJO_MODULE_PATH: managed.modulePaths.join(delimiter), KUJO_BIN: kujo }] as [string, string[], NodeJS.ProcessEnv];
     }
     const target = integrationTarget(registry, id);
-    if (target?.mode === "binary") return [target.path, binaryArgs] as [string, string[]];
-    if (target?.mode === "entrypoint") return [kujo, ["run", target.path, ...entryArgs]] as [string, string[]];
+    if (target?.mode === "binary") return [target.path, binaryArgs, isolatedEnvironment] as [string, string[], NodeJS.ProcessEnv];
+    if (target?.mode === "entrypoint") return [kujo, ["run", target.path, ...entryArgs], {
+      ...isolatedEnvironment, KUJO_MODULE_PATH: managed?.modulePaths?.join(delimiter),
+    }] as [string, string[], NodeJS.ProcessEnv];
     throw new Error(`No verified ${id} integration found; set ${binaryEnv}, ${entryEnv}, or KUJO_ECOSYSTEM_ROOT`);
   };
   switch (operation) {
@@ -251,24 +264,31 @@ function outputRootFor(operation: string, params: any, cwd: string) {
   return null;
 }
 
-async function workspaceRevision(pi: ExtensionAPI, cwd: string) {
+async function workspaceRevision(runner: typeof runStreamingCommand, cwd: string, signal?: AbortSignal) {
   try {
-    const result = await pi.exec("git", ["rev-parse", "HEAD"], { cwd, timeout: 5_000 });
-    return result.code === 0 && /^[a-f0-9]{40,64}$/i.test(result.stdout.trim()) ? result.stdout.trim() : null;
+    const result = await runner("git", ["rev-parse", "HEAD"], cwd, signal, 5_000, () => {});
+    return result.ok && "output" in result && /^[a-f0-9]{40,64}$/i.test(result.output) ? result.output : null;
   } catch {
     return null;
   }
 }
 
 export default function kujoPi(pi: ExtensionAPI) {
+  registerKujoPi(pi, runStreamingCommand);
+}
+
+export function registerKujoPi(pi: ExtensionAPI, runner: typeof runStreamingCommand) {
   const telemetry = new PiTelemetryBridge();
   let registry: ReturnType<typeof inspectIntegrations> | null = null;
   let registryError: string | null = null;
-  const refreshRegistry = () => {
+  const refreshRegistry = (onlyId?: string) => {
     try {
-      registry = inspectIntegrations();
+      const inspected = inspectIntegrations(process.env, onlyId);
+      if (onlyId) return inspected;
+      registry = inspected;
       registryError = null;
     } catch (error) {
+      if (onlyId) return null;
       registry = null;
       registryError = String(error);
     }
@@ -363,9 +383,8 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (action === "demo") {
         if (ctx.isProjectTrusted?.() !== true) { ctx.ui.notify("Trust this project before running the read-only demo.", "warning"); return; }
         try {
-          refreshRegistry();
-          const [command, args, environment] = commandFor("changebucket", {}, ctx.cwd, registry);
-          const result: any = await exec(pi, command, args, ctx.cwd, undefined, 120_000, undefined, environment);
+          const [command, args, environment] = commandFor("changebucket", {}, ctx.cwd, refreshRegistry("changebucket"));
+          const result: any = await exec(runner, command, args, ctx.cwd, undefined, 120_000, undefined, environment);
           ctx.ui.notify(`Kujo demo: ${result.status}\n${result.output || result.message || ""}`, result.ok ? "info" : "error");
         } catch (error) { ctx.ui.notify(`Kujo demo: ${String(error)}. Run /kujo setup review.`, "error"); }
         return;
@@ -434,17 +453,24 @@ export default function kujoPi(pi: ExtensionAPI) {
       renderResult,
       async execute(_id, params: any, signal, onUpdate, ctx) {
         try {
-          const cwd = workspacePath(ctx.cwd, params.workspace || ".");
           const trustError = trustFailure(ctx);
           if (trustError) return trustError;
-          refreshRegistry();
-          const [command, args, environment] = commandFor(operation, { ...params, confirm: params.confirm === true }, cwd, registry);
+          if (signal?.aborted) return toolResult({ ok: false, status: "cancelled" });
+          const cwd = workspacePath(ctx.cwd, params.workspace || ".");
+          const inputs = { ...params, confirm: params.confirm === true };
+          const integration = operationContract(operation)?.integration;
+          const prepare = () => {
+            const [command, args, environment] = commandFor(operation, inputs, cwd, integration ? refreshRegistry(integration) : null);
+            return { command: findExecutable(command) || command, args, environment };
+          };
+          const prepared = prepare();
+          const { command, args, environment } = prepared;
           const descriptor = createOperationDescriptor({
             operation,
-            command: findExecutable(command) || command,
+            command,
             args,
             workspace: cwd,
-            revision: await workspaceRevision(pi, cwd),
+            revision: await workspaceRevision(runner, cwd, signal),
             entrypoint: args[0] === "run" && args[1] ? args[1] : null,
             outputRoot: outputRootFor(operation, params, cwd),
             payload: params,
@@ -453,7 +479,13 @@ export default function kujoPi(pi: ExtensionAPI) {
           if (requiresApproval && !approved) {
             return toolResult({ ok: false, status: "approval_required", message: "No approval was granted." }, descriptor.operationId);
           }
-          const result = await exec(pi, command, args, cwd, signal, 120_000, onUpdate, environment);
+          if (approved && (trustFailure(ctx) || workspacePath(ctx.cwd, params.workspace || ".") !== cwd ||
+              await workspaceRevision(runner, cwd, signal) !== descriptor.revision ||
+              outputRootFor(operation, inputs, cwd) !== descriptor.outputRoot ||
+              JSON.stringify(prepare()) !== JSON.stringify(prepared))) {
+            return toolResult({ ok: false, status: "approval_required", message: "Execution changed after approval. Review a fresh request." }, descriptor.operationId);
+          }
+          const result = await exec(runner, command, args, cwd, signal, 120_000, onUpdate, environment);
           recordReceipt(pi, operation, cwd, result, descriptor);
           return toolResult(result, descriptor.operationId);
         } catch (error) {
@@ -483,7 +515,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       const availability = Object.fromEntries(await Promise.all(Object.entries(binaries).map(async ([name, binary]) => [
         name, name !== "kujo" && integrationTarget(registry, name)
           ? { command: integrationTarget(registry, name)?.path, ok: true, status: "success", label: integrationTarget(registry, name)?.path, output: "Local integration available; see registry details for source and checksum verification." }
-          : { command: binary, ...(await exec(pi, binary, ["--version"], workspace, signal, 10_000) as any) },
+          : { command: binary, ...(await exec(runner, binary, ["--version"], workspace, signal, 10_000) as any) },
       ]))) as Record<string, unknown>;
       const kujoResult: any = availability.kujo;
       const actualVersion = versionFromOutput(kujoResult.output || "");
@@ -514,6 +546,7 @@ export default function kujoPi(pi: ExtensionAPI) {
       const remediations = [
         ...(telemetryStatus.deferredTemporaries ? [{ name: "telemetry", status: "cleanup_deferred", fix: "Some orphan temporary files were busy or inaccessible. Check local spool permissions; recovery is retried at the next initialization." }] : []),
         ...(telemetryStatus.droppedBatches || telemetryStatus.writeFailures ? [{ name: "telemetry", status: "data_loss", fix: "Inspect local spool storage and event pressure; pending queue limits reuse KUJO_PI_TELEMETRY_SPOOL_MAX_FILES/MAX_BYTES. Counters are cumulative for this Pi process." }] : []),
+        ...(telemetryStatus.quarantinedBatches ? [{ name: "telemetry", status: "invalid_local_batch", fix: "Review the quarantined .rejected metadata batch files in the configured spool." }] : []),
         ...Object.entries(availability)
           .filter(([, value]: any) => !value.ok)
           .map(([name, value]: any) => ({ name, status: value.status, command: value.label, fix: `Install ${name} on PATH or set its documented KUJO_*_BIN override.`, detail: value.output || value.message || null })),
@@ -561,7 +594,7 @@ export default function kujoPi(pi: ExtensionAPI) {
 
   registerKujoCliTool("kujo_status", "Kujo status", "Check that the Kujo CLI is installed.", withWorkspace(Type.Object({})), "status");
   registerKujoCliTool("kujo_check", "Kujo check", "Validate a Kujo source file without changing it.", withWorkspace(Type.Object({ file: shortText("Kujo source path inside the selected workspace") })), "check");
-  registerKujoCliTool("kujo_scout", "Kujo Scout", "Create a repository intelligence report.", withWorkspace(Type.Object({ path: optionalWorkspacePath("Repository path inside the selected workspace"), quick: Type.Optional(Type.Boolean()) })), "scout");
+  registerKujoCliTool("kujo_scout", "Kujo Scout", "Create a repository intelligence report after explicit approval.", withWorkspace(Type.Object({ path: optionalWorkspacePath("Repository path inside the selected workspace"), quick: Type.Optional(Type.Boolean()), confirm: Type.Optional(Type.Boolean()) })), "scout", true);
   registerKujoCliTool("kujo_scent", "Kujo Scent", "Prepare scoped context with provenance and redaction metadata.", withWorkspace(Type.Object({ task: taskText("Task to scope the context pack around"), path: optionalWorkspacePath("Repository path inside the selected workspace") })), "scent");
   registerKujoCliTool("kujo_review_changes", "Kujo review changes", "Generate a PatchBrief handoff for current changes.", withWorkspace(Type.Object({})), "review");
   registerKujoCliTool("kujo_changebucket", "Kujo ChangeBucket", "Measure current change footprint and blast radius.", withWorkspace(Type.Object({})), "changebucket");
@@ -571,29 +604,10 @@ export default function kujoPi(pi: ExtensionAPI) {
   registerKujoCliTool("kujo_rag_query", "Kujo RAG query", "Query a configured local Kujo RAG index and return citations.", withWorkspace(Type.Object({ question: taskText("Question for the configured RAG index"), namespace: Type.Optional(shortText("RAG namespace")) })), "rag");
   registerKujoCliTool("kujo_dispatch_run", "Kujo Dispatch run", "Run a resumable, reviewable Dispatch workflow after explicit approval.", withWorkspace(Type.Object({ task: taskText("Task for the Dispatch workflow"), workflow: Type.Optional(shortText("Dispatch workflow name")), output: optionalWorkspacePath("Dispatch output directory inside the selected workspace"), confirm: Type.Optional(Type.Boolean()) })), "dispatch", true);
 
-  pi.registerTool({
-    name: "kujo_runledger", label: "Kujo RunLedger", description: "Start or finish a local RunLedger receipt using the installed RunLedger CLI.", ...promptHints("kujo_runledger"),
-    parameters: withWorkspace(Type.Union([
-      Type.Object({ action: Type.Literal("start"), task: Type.Optional(taskText("Task associated with the run")), provider: Type.Optional(shortText("Model provider")), model: Type.Optional(shortText("Model name")) }),
-      Type.Object({ action: Type.Literal("finish"), runId: Type.String({ minLength: 1, maxLength: 96, pattern: "^[a-zA-Z0-9._-]+$" }), status: Type.Optional(shortText("Final run status")), verdict: Type.Optional(taskText("Final run verdict")) }),
-    ])),
-    renderResult,
-    async execute(_id, params: any, signal, _onUpdate, ctx) {
-      const trustError = trustFailure(ctx);
-      if (trustError) return trustError;
-      try {
-        const cwd = workspacePath(ctx.cwd, params.workspace || ".");
-        refreshRegistry();
-        const [command, args, environment] = commandFor("runledger", params, cwd, registry);
-        const descriptor = createOperationDescriptor({ operation: "runledger", command, args, workspace: cwd, revision: await workspaceRevision(pi, cwd), entrypoint: args[0] === "run" ? args[1] : null, payload: params });
-        const result = await exec(pi, command, args, cwd, signal, 120_000, _onUpdate, environment);
-        recordReceipt(pi, "runledger", cwd, result, descriptor);
-        return toolResult(result, descriptor.operationId);
-      } catch (error) {
-        return toolResult({ ok: false, status: "configuration_error", message: String(error) });
-      }
-    },
-  });
+  registerKujoCliTool("kujo_runledger", "Kujo RunLedger", "Start or finish a local RunLedger receipt after explicit approval.", withWorkspace(Type.Union([
+    Type.Object({ action: Type.Literal("start"), task: Type.Optional(taskText("Task associated with the run")), provider: Type.Optional(shortText("Model provider")), model: Type.Optional(shortText("Model name")), confirm: Type.Optional(Type.Boolean()) }),
+    Type.Object({ action: Type.Literal("finish"), runId: Type.String({ minLength: 1, maxLength: 96, pattern: "^[a-zA-Z0-9._-]+$" }), status: Type.Optional(shortText("Final run status")), verdict: Type.Optional(taskText("Final run verdict")), confirm: Type.Optional(Type.Boolean()) }),
+  ])), "runledger", true);
 
   pi.registerTool({
     name: "kujo_ability_list", label: "Kujo Ability discovery", description: "List the canonical Abilities available from the configured application gateway.", ...promptHints("kujo_ability_list"),
@@ -604,8 +618,9 @@ export default function kujoPi(pi: ExtensionAPI) {
       if (!base) return toolResult({ ok: false, status: "not_configured", message: "Set KUJO_ABILITY_GATEWAY_URL to opt into Ability discovery." });
       try {
         const endpoint = sameOriginUrl(base, "/v1/ai/mcp/tools");
-        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_ABILITY_GATEWAY") }), signal);
-        const { valid, body } = await abilityResponse(response);
+        const headers = serviceHeaders("KUJO_ABILITY_GATEWAY");
+        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers }), signal);
+        const { valid, body } = await abilityResponse(response, headers);
         return toolResult({ ok: response.ok && valid, status: !response.ok ? "remote_rejected" : valid ? "success" : "invalid_response", code: response.status, body });
       } catch (error) { return toolResult(errorResult(error)); }
     },
@@ -629,11 +644,17 @@ export default function kujoPi(pi: ExtensionAPI) {
       try {
         const endpoint = sameOriginUrl(base, params.executionPath);
         const invocationId = params.invocationId || `pi-${randomUUID()}`;
-        descriptor = createOperationDescriptor({ operation: "ability", command: endpoint.href, args: [], workspace: ctx.cwd, payload: { executionPath: params.executionPath, input: params.input, invocationId } });
-        if (!(await approve(pi, ctx, "Kujo Ability approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
+        const payload = { input: params.input, invocation_id: invocationId, ...(params.approvalId ? { approval_id: params.approvalId } : {}) };
+        const encoded = boundedJson(payload);
         const headers = { ...serviceHeaders("KUJO_ABILITY_GATEWAY"), "content-type": "application/json", ...(params.idempotencyKey ? { "idempotency-key": params.idempotencyKey } : {}), ...(params.approvalId ? { "x-ability-approval": params.approvalId } : {}) };
-        const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body: boundedJson({ input: params.input, invocation_id: invocationId, ...(params.approvalId ? { approval_id: params.approvalId } : {}) }) });
-        const { valid, body } = await abilityResponse(response);
+        descriptor = createOperationDescriptor({ operation: "ability", command: endpoint.href, args: [], workspace: ctx.cwd, payload: { ...payload, idempotency_key: params.idempotencyKey ?? null } });
+        if (signal?.aborted) return toolResult({ ok: false, status: "cancelled" }, descriptor.operationId);
+        if (!(await approve(pi, ctx, "Kujo Ability approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
+        const trustChanged = trustFailure(ctx);
+        if (trustChanged) return trustChanged;
+        if (signal?.aborted) return toolResult({ ok: false, status: "cancelled" }, descriptor.operationId);
+        const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body: encoded });
+        const { valid, body } = await abilityResponse(response, headers);
         const result = { ok: response.ok && valid, status: !response.ok ? "remote_rejected" : valid ? "success" : "invalid_response", code: response.status, body };
         recordReceipt(pi, "ability", ctx.cwd, result, descriptor);
         return toolResult(result, descriptor.operationId);
@@ -654,8 +675,9 @@ export default function kujoPi(pi: ExtensionAPI) {
       try {
         const endpoint = sameOriginUrl(base, params.path || "/healthz");
         descriptor = createOperationDescriptor({ operation: "watchdog", command: endpoint.href, args: [], workspace: ctx.cwd, payload: { path: params.path || "/healthz" } });
-        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers: serviceHeaders("KUJO_WATCHDOG") }), signal);
-        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
+        const headers = serviceHeaders("KUJO_WATCHDOG");
+        const response = await fetchWithRetry((requestSignal) => fetch(endpoint, { signal: requestSignal, redirect: "error", headers }), signal);
+        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await serviceBody(response, headers) };
         recordReceipt(pi, "watchdog", ctx.cwd, result, descriptor);
         return toolResult(result, descriptor.operationId);
       } catch (error) {
@@ -679,11 +701,16 @@ export default function kujoPi(pi: ExtensionAPI) {
       let descriptor: ReturnType<typeof createOperationDescriptor> | undefined;
       try {
         const endpoint = sameOriginUrl(base, "/v1/intervention-events");
-        descriptor = createOperationDescriptor({ operation: "leash", command: endpoint.href, args: [], workspace: ctx.cwd, payload: params.event });
-        if (!(await approve(pi, ctx, "Leash approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
+        const body = boundedJson(params.event);
         const headers = { ...serviceHeaders("KUJO_LEASH"), authorization: `Bearer ${token}`, "content-type": "application/json" };
-        const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body: boundedJson(params.event) });
-        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await boundedResponse(response) };
+        descriptor = createOperationDescriptor({ operation: "leash", command: endpoint.href, args: [], workspace: ctx.cwd, payload: params.event });
+        if (signal?.aborted) return toolResult({ ok: false, status: "cancelled" }, descriptor.operationId);
+        if (!(await approve(pi, ctx, "Leash approval", descriptor, params.confirm === true))) return toolResult({ ok: false, status: "approval_required" }, descriptor.operationId);
+        const trustChanged = trustFailure(ctx);
+        if (trustChanged) return trustChanged;
+        if (signal?.aborted) return toolResult({ ok: false, status: "cancelled" }, descriptor.operationId);
+        const response = await fetch(endpoint, { method: "POST", signal: requestSignal(signal), redirect: "error", headers, body });
+        const result = { ok: response.ok, status: response.status >= 500 ? "remote_failure" : response.ok ? "success" : "remote_rejected", code: response.status, body: await serviceBody(response, headers) };
         recordReceipt(pi, "leash", ctx.cwd, result, descriptor);
         return toolResult(result, descriptor.operationId);
       } catch (error) {

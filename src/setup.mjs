@@ -1,9 +1,10 @@
 // @ts-check
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { CAPABILITY_PACKS } from "./capabilities.mjs";
 import { canonicalJson, sha256 } from "./contracts.mjs";
+import { readRegularBytes } from "./regular-file.mjs";
 
 export const PACK_INTEGRATIONS = /** @type {Record<string, string[]>} */ ({
   understand: ["scout", "scent"], review: ["patchbrief", "changebucket"],
@@ -50,15 +51,14 @@ export function managedIntegration(entry, environment) {
   const home = setupHome(environment);
   const statePath = join(home, "kennel", "tools.json");
   if (!existsSync(statePath)) return null;
-  if (lstatSync(statePath).size > 8 * 1024 * 1024) throw new Error("Kennel tool state is too large");
-  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  const state = JSON.parse(readRegularBytes(statePath, 8 * 1024 * 1024).toString("utf8"));
   if (state.schema_version !== 1) throw new Error("Unsupported Kennel tool state");
   const record = state.packages?.[entry.package];
   if (!record) return null;
   if (!environment.KUJO_BIN) {
     const metadataPath = join(home, "runtime", "node_modules", "@kujolang", "kujo-runtime", "package.json");
     if (!existsSync(managedRuntime(home)) || !existsSync(metadataPath)) throw new Error("Managed Kujo runtime is missing; run setup again");
-    const version = JSON.parse(readFileSync(metadataPath, "utf8")).version;
+    const version = JSON.parse(readRegularBytes(metadataPath, 64 * 1024).toString("utf8")).version;
     const parts = String(version).split(".").map(Number);
     const minimum = String(entry.minimumKujoVersion).split(".").map(Number);
     let compatible = /^\d+\.\d+\.\d+$/.test(version);

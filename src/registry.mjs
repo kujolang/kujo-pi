@@ -1,10 +1,11 @@
 // @ts-check
 import { createHash, verify } from "node:crypto";
-import { accessSync, closeSync, constants, openSync, readSync, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { delimiter, extname, isAbsolute, resolve } from "node:path";
+import { accessSync, closeSync, constants, fstatSync, readSync, existsSync, realpathSync, statSync } from "node:fs";
+import { delimiter, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonicalJson } from "./contracts.mjs";
 import { managedIntegration } from "./setup.mjs";
+import { openRegular, readRegularBytes } from "./regular-file.mjs";
 
 export const REGISTRY_SCHEMA_VERSION = "kujo.pi.integration-registry.v1";
 const DEFAULT_REGISTRY = fileURLToPath(new URL("../integrations/registry.v1.json", import.meta.url));
@@ -41,20 +42,29 @@ function validateRegistryManifest(manifest) {
   }
 }
 
+/** @param {import("node:fs").BigIntStats} stat */
+function fileIdentity(stat) {
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+}
+
 /** @param {string} path */
 function fileSha256(path) {
-  const hash = createHash("sha256");
-  const buffer = Buffer.allocUnsafe(64 * 1024);
-  const descriptor = openSync(path, "r");
+  const { fd, info } = openRegular(path);
   try {
-    let bytes;
-    while ((bytes = readSync(descriptor, buffer, 0, buffer.length, null)) > 0) {
+    if (info.size > 128 * 1024 * 1024) throw Error("Integration file exceeds 128 MiB");
+    const identity = fileIdentity(info);
+    const hash = createHash("sha256");
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let remaining = Number(info.size);
+    while (remaining > 0) {
+      const bytes = readSync(fd, buffer, 0, Math.min(remaining, buffer.length), null);
+      if (!bytes) throw Error("Integration changed size while hashing");
+      remaining -= bytes;
       hash.update(buffer.subarray(0, bytes));
     }
+    if (fileIdentity(fstatSync(fd, { bigint: true })) !== identity) throw Error("Integration changed while hashing");
     return hash.digest("hex");
-  } finally {
-    closeSync(descriptor);
-  }
+  } finally { closeSync(fd); }
 }
 
 /** @param {string} command @param {NodeJS.ProcessEnv} [environment] */
@@ -89,16 +99,16 @@ export function loadSignedRegistry(registryPath = DEFAULT_REGISTRY, signaturePat
   if (![registryPath, signaturePath, publicKeyPath].every(isAbsolute)) {
     throw new Error("Integration registry, signature, and public key paths must be absolute");
   }
-  const manifest = /** @type {any} */ (JSON.parse(readFileSync(registryPath, "utf8")));
+  const manifest = /** @type {any} */ (JSON.parse(readRegularBytes(registryPath, 1024 * 1024).toString("utf8")));
   validateRegistryManifest(manifest);
-  const signature = Buffer.from(readFileSync(signaturePath, "utf8").trim(), "base64");
-  const valid = verify(null, Buffer.from(canonicalJson(manifest)), readFileSync(publicKeyPath, "utf8"), signature);
+  const signature = Buffer.from(readRegularBytes(signaturePath, 16 * 1024).toString("utf8").trim(), "base64");
+  const valid = verify(null, Buffer.from(canonicalJson(manifest)), readRegularBytes(publicKeyPath, 16 * 1024).toString("utf8"), signature);
   if (!valid) throw new Error("Integration registry signature verification failed");
   return { manifest, registryPath, signaturePath, publicKeyPath, signatureVerified: true };
 }
 
-/** @param {NodeJS.ProcessEnv} [environment] */
-export function inspectIntegrations(environment = process.env) {
+/** @param {NodeJS.ProcessEnv} [environment] @param {string} [onlyId] */
+export function inspectIntegrations(environment = process.env, onlyId) {
   const configuredPath = (/** @type {string|undefined} */ value, /** @type {string} */ fallback) => {
     if (!value) return fallback;
     if (!isAbsolute(value)) throw new Error("Integration registry, signature, and public key paths must be absolute");
@@ -110,7 +120,8 @@ export function inspectIntegrations(environment = process.env) {
   const publicKeyPath = configuredPath(environment.KUJO_INTEGRATION_REGISTRY_PUBLIC_KEY, DEFAULT_PUBLIC_KEY);
   const registry = loadSignedRegistry(registryPath, signaturePath, publicKeyPath);
   const ecosystemRoot = environment[registry.manifest.ecosystemRootEnvironment || "KUJO_ECOSYSTEM_ROOT"];
-  const integrations = registry.manifest.integrations.map((/** @type {any} */ entry) => {
+  const entries = onlyId ? registry.manifest.integrations.filter((/** @type {any} */ entry) => entry.id === onlyId) : registry.manifest.integrations;
+  const integrations = entries.map((/** @type {any} */ entry) => {
     const configuredBinary = entry.binaryEnvironment ? environment[entry.binaryEnvironment] : undefined;
     const configuredEntrypoint = entry.entrypointEnvironment ? environment[entry.entrypointEnvironment] : undefined;
     let binaryPath = null;
@@ -143,6 +154,14 @@ export function inspectIntegrations(environment = process.env) {
           if (existsSync(candidate)) {
             source = "signed_registry";
             entrypointPath = realpathSync(candidate);
+            const segments = entry.relativeEntrypoint.split(/[\\/]/);
+            const base = realpathSync(ecosystemRoot);
+            const root = segments.length === 1 ? base : realpathSync(resolve(base, segments[0]));
+            const rootPath = relative(base, root);
+            if (rootPath === ".." || rootPath.startsWith(`..${sep}`) || isAbsolute(rootPath) || root.includes(delimiter)) throw Error("Invalid registry source root");
+            const child = relative(root, entrypointPath);
+            if (!child || child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) throw Error("Registry entrypoint escapes its source root");
+            modulePaths = [root];
           }
         }
       }

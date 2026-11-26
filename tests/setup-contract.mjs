@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspectIntegrations } from "../src/registry.mjs";
 import { createSetupPlan, managedIntegration, validateSetupHome, setupSummary } from "../src/setup.mjs";
 import { applySetupPlan, downloadInstaller } from "../src/setup-install.mjs";
-import { sha256 } from "../src/contracts.mjs";
+import { canonicalJson, sha256 } from "../src/contracts.mjs";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "kujo-pi-setup-")));
 const environment = { PATH: "", KUJO_PI_HOME: join(root, "toolchain with spaces") };
@@ -21,6 +21,22 @@ assert.throws(() => createSetupPlan({ ...registry, signatureVerified: false }, "
 await assert.rejects(applySetupPlan(plan, "wrong"), /plan changed/);
 await assert.rejects(applySetupPlan({ ...plan, home: root }, plan.digest), /plan changed/);
 assert.equal(existsSync(plan.home), false, "denied or altered plan must not write");
+const fixtureHome = join(root, "offline-setup");
+const fixtureMarker = join(fixtureHome, "executed");
+const fixtureBody = { supported: true, home: fixtureHome, pack: "fixture", packages: [], steps: [{
+  kind: "fixture", command: process.execPath, args: ["-e", `require('node:fs').writeFileSync(${JSON.stringify(fixtureMarker)}, process.env.KUJO_ISOLATED_IMPORTS)`],
+}] };
+const fixtureDigest = sha256(canonicalJson(fixtureBody));
+const fixturePlan = { ...fixtureBody, digest: fixtureDigest };
+await assert.rejects(applySetupPlan(fixturePlan, fixtureDigest, undefined, AbortSignal.abort()), /cancelled/);
+assert.equal(existsSync(fixtureHome), false);
+const controller = new AbortController();
+await assert.rejects(applySetupPlan(fixturePlan, fixtureDigest, () => controller.abort(), controller.signal), /cancelled/);
+assert.equal(existsSync(fixtureMarker), false);
+assert.equal(existsSync(join(fixtureHome, ".setup.lock")), false);
+await applySetupPlan(fixturePlan, fixtureDigest);
+assert.equal(readFileSync(fixtureMarker, "utf8"), "1");
+assert.equal(JSON.parse(readFileSync(join(fixtureHome, "setup-receipt.json"), "utf8")).planDigest, fixtureDigest);
 if (process.platform !== "win32") {
   symlinkSync(join(root, "absent"), join(root, "link"));
   assert.throws(() => validateSetupHome(join(root, "link", "child")), /symlink/);

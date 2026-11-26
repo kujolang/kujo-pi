@@ -104,7 +104,7 @@ The package begins with optional and service-backed integrations inactive. A pro
 | `kujo_doctor` | active | Check local tools, project trust, entrypoints, and network configuration | Version probes in trusted projects only |
 | `kujo_status` | active | Check Kujo installation | Read-only |
 | `kujo_check` | active | Validate `.kujo` source | Read-only |
-| `kujo_scout` | opt-in | Map repository structure, dependencies, routes, and risks | Writes Scout output when configured |
+| `kujo_scout` | opt-in | Map repository structure, dependencies, routes, and risks | Requires approval before writing Scout output |
 | `kujo_scent` | opt-in | Prepare scoped context with provenance and redaction metadata | Dry-run by default |
 | `kujo_review_changes` | opt-in | Generate a PatchBrief handoff | Writes a review artifact |
 | `kujo_changebucket` | opt-in | Measure change footprint and blast radius | Writes a report |
@@ -112,7 +112,7 @@ The package begins with optional and service-backed integrations inactive. A pro
 | `kujo_mcp_make` | opt-in + approval | Generate a guarded repo-specific MCP server | Writes scaffold and artifacts |
 | `kujo_dispatch_run` | opt-in + approval | Run a resumable Dispatch workflow | Executes workflow and writes state |
 | `kujo_agents_smoke` | opt-in + approval | Run deterministic Agents SDK fixtures | Executes fixture suite |
-| `kujo_runledger` | opt-in | Start or finish a RunLedger receipt | Writes local ledger data |
+| `kujo_runledger` | opt-in | Start or finish a RunLedger receipt | Requires approval before writing local ledger data |
 | `kujo_watchdog` | opt-in | Read configured Watchdog health/telemetry | Network only when configured |
 | `kujo_leash_approval` | opt-in + approval | Send an approval event to Leash | Network only when configured |
 | `kujo_rag_query` | opt-in | Query a local RAG index with citations | Read-only query |

@@ -29,6 +29,13 @@ writeFileSync(executable, largeBinary);
 const largeInspection = inspectIntegrations({ PATH: "", KUJO_SCOUT_BIN: executable });
 assert.equal(largeInspection.integrations.find(({ id }) => id === "scout").actualSha256,
   createHash("sha256").update(largeBinary).digest("hex"), "bounded hashing must include every byte and the final partial chunk");
+const selected = inspectIntegrations({ PATH: "", KUJO_SCOUT_BIN: executable }, "scout");
+assert.equal(selected.manifestDigest, largeInspection.manifestDigest);
+assert.deepEqual(selected.integrations, largeInspection.integrations.filter(({ id }) => id === "scout"));
+
+const oversizedRegistry = join(temp, "oversized.json");
+writeFileSync(oversizedRegistry, Buffer.alloc(1024 * 1024 + 1));
+assert.throws(() => loadSignedRegistry(oversizedRegistry, signaturePath, publicKeyPath), /exceeds 1048576 bytes/);
 
 const tampered = join(temp, "registry.json");
 const manifest = JSON.parse(readFileSync(registryPath, "utf8"));
@@ -45,6 +52,7 @@ const rejected = mismatch.integrations.find(({ id }) => id === "scout");
 assert.equal(rejected?.source, "signed_registry");
 assert.equal(rejected?.checksumVerified, false);
 assert.equal(rejected?.available, false);
+assert.deepEqual(rejected?.modulePaths, [realpathSync(join(mismatchedRoot, "scout"))]);
 
 
 const explicitEntry = join(temp, "explicit.kujo");
